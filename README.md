@@ -1,0 +1,138 @@
+# synergy-ccm-mcp
+
+Give an AI agent safe, read-only access to a decade of engineering history locked in **IBM Rational Synergy 7.2**.
+
+**Contents:** [What this is](#what-this-is) · [Why](#why) · [Status](#status) · [Install](#install) · [Configure](#configure) · [Use](#use) · [Safety](#safety) · [Documentation](#documentation) · [Compatibility](#compatibility) · [Contributing](#contributing) · [License](#license)
+
+## What this is
+
+An [MCP](https://modelcontextprotocol.io) server and a set of agent skills that expose a Rational Synergy database through its `ccm` command-line client.
+
+It lets an AI assistant answer questions such as:
+
+- Who changed `parser.c`, and what else changed with it?
+- What is in release `product/2.0`, and which tasks are still open?
+- What is the difference between these two baselines?
+- Show me version 7 of this file — without checking anything out.
+
+## Why
+
+Synergy 7.2 shipped around 2012. Sites still running it hold years of engineering history in a system that has no modern query interface, no REST API worth using, and a shrinking pool of people who remember the CLI. The data is valuable and effectively unreachable.
+
+This toolkit makes it reachable, without letting an agent anywhere near a write operation.
+
+## Status
+
+**Phase 1 — read-only.** Actively being built.
+
+| Phase | Content | Status |
+|---|---|---|
+| 1 | Read-only: query, object, task, project tool groups | in progress |
+| 2 | Knowledge corpus from harvested `ccm help` + manuals | designed |
+| 3 | Task-management writes behind a staged-commit flow | designed |
+| 4 | Checkout/checkin, work areas | not scheduled |
+
+## Install
+
+Requires Python ≥ 3.10 and a Synergy 7.2 `ccm` client **on the same host**.
+
+```bash
+cd synergy-mcp-server/server
+python -m venv .venv
+. .venv/bin/activate
+pip install -e ../packages/synergy-core -e ../packages/synergy-db -e .
+```
+
+## Configure
+
+```bash
+cp synergy-mcp-server/inventory.example.yaml synergy-mcp-server/inventory.yaml
+```
+
+Describe your databases in `inventory.yaml` — **facts only, never credentials**:
+
+```yaml
+databases:
+  - name: prod-core
+    database: /opt/ccm/db/core
+    host: buildhost
+    server_url: http://buildhost:8400
+    role: developer
+    groups: [production]
+```
+
+Then either set credentials out-of-band:
+
+```bash
+synergy-mcp-set-credentials prod-core --user your-name
+```
+
+…or, preferably, use **attach mode** so the server never handles a password:
+
+```bash
+ccm start -m -q -nogui -d /opt/ccm/db/core -h buildhost -r developer -n your-name
+export SYNERGY_PROD_CORE_CCM_ADDR=buildhost:1234:10.0.0.5
+```
+
+Full setup: [docs/connecting-local-mcp.md](synergy-mcp-server/docs/connecting-local-mcp.md).
+
+## Use
+
+```
+health_check(database="prod-core")
+ccm_query(database="prod-core", expression="cvtype='task' and release='product/2.0'")
+task_objects(database="prod-core", task="4711")
+object_content(database="prod-core", object_name="parser.c-7:csrc:1")
+```
+
+More: [docs/examples.md](synergy-mcp-server/docs/examples.md) · [docs/workflows.md](synergy-mcp-server/docs/workflows.md)
+
+New to Synergy's object model? Start with [docs/CONCEPTS.md](synergy-mcp-server/docs/CONCEPTS.md) — it is not Git, and assuming otherwise produces wrong answers.
+
+## Safety
+
+A Synergy database is often the only copy of a site's engineering history. The design assumes that and is deliberately conservative:
+
+- **Read-only.** Mutating verbs are rejected by the policy layer, not merely unimplemented.
+- **Allowlisted verbs**, matched by exact string equality. Fails closed.
+- **Permanent denylist** — `delete`, `purge`, `archive`, `migrate`, `db`, `dcm`, `typedef`, `users` are unreachable by any configuration.
+- **Mutating sub-flags** (`-create`, `-modify`, `-complete`, …) rejected on otherwise-read verbs.
+- **No shell.** All execution is `subprocess.run(argv, shell=False)`.
+- **Untrusted-output boundary.** Source code, check-in comments and task synopses are attacker-influenced text. Everything the database returns is wrapped at one seam and treated as data, never instructions.
+- **Pooled sessions** so the server does not burn licence seats.
+- **Append-only audit log** with secrets redacted.
+
+The contract is [docs/ccm-contract.md](synergy-mcp-server/docs/ccm-contract.md), and it is enforced in code.
+
+## Documentation
+
+Start at [docs/README.md](synergy-mcp-server/docs/README.md).
+
+| | |
+|---|---|
+| [CONCEPTS.md](synergy-mcp-server/docs/CONCEPTS.md) | Synergy's object model for people who know Git |
+| [architecture.md](synergy-mcp-server/docs/architecture.md) | Stack, layout, session model, safety invariants |
+| [mcp-capabilities.md](synergy-mcp-server/docs/mcp-capabilities.md) | Every tool, resource and prompt |
+| [ccm-contract.md](synergy-mcp-server/docs/ccm-contract.md) | The safety contract |
+| [plan/](synergy-mcp-server/docs/plan/README.md) | Design decisions and rejected alternatives |
+
+## Compatibility
+
+| Synergy version | Status |
+|---|---|
+| 7.2, 7.2.1 | Supported — the target |
+| 7.1, 7.1a | Expected to work; unverified |
+| 7.0 | Unverified |
+| 6.5 and earlier (Telelogic / CM Synergy) | Object model matches, CLI flags differ; needs its own driver |
+
+The stable surface is the query language and the four-part object name. The volatile surface is flag spelling on `task`, `folder` and `baseline`.
+
+## Contributing
+
+Safety-critical paths are enumerated in `synergy_core/safety.py` and require two reviewers plus an eval case. Everything else takes one. See [docs/plan/09-contribution-model.md](synergy-mcp-server/docs/plan/09-contribution-model.md).
+
+## License
+
+[Apache-2.0](LICENSE).
+
+Not affiliated with or endorsed by IBM. "Rational Synergy" is a trademark of its respective owner and is used here descriptively.

@@ -1,0 +1,16 @@
+{
+  "tool_profile": "lean",
+  "group_flags": {
+    "SYNERGY_MCP_TASK": true,
+    "SYNERGY_MCP_PROJECT": true,
+    "SYNERGY_MCP_INVENTORY_WRITE": false,
+    "SYNERGY_MCP_DEV_TOOLS": false
+  },
+  "overrides": {
+    "allow_set_database_credentials": false
+  },
+  "runtime_defaults": {
+    "SYNERGY_MCP_READONLY": true,
+    "SYNERGY_MCP_REQUIRE_SKILLS": true
+  }
+}

@@ -1,0 +1,47 @@
+# --- Secrets and site-specific configuration -------------------------------
+# Never commit. inventory.example.yaml is the committed artefact.
+inventory.yaml
+.env
+*.env
+!.env.example
+server/.env
+**/.synergy-mcp-tokens
+
+# --- Runtime output --------------------------------------------------------
+logs/
+backups/
+*.log
+smoke-*.txt
+
+# --- Build artefacts -------------------------------------------------------
+build/
+dist/
+*.sqlite
+*.sqlite3
+*.egg-info/
+.eggs/
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Licensed source documents (extracted markdown IS committed) -----------
+manuals/**/*.pdf
+release-notes/**/*.pdf
+*.docx
+
+# --- Editors and OS --------------------------------------------------------
+.idea/
+.vs/
+*.swp
+.DS_Store
+Thumbs.db
