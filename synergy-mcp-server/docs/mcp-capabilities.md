@@ -109,11 +109,13 @@ These write **only the local inventory file**, never the Synergy database. Crede
 
 | URI | Contents |
 |---|---|
-| `synergy://status` | Active profile, enabled groups, server version, skill versions, missing-tool warnings, session states |
+| `synergy://status` | Server version, read-only posture, registered tools, served skill versions, missing-tool warnings |
 | `synergy://inventory` | Credential-free database list |
 | `synergy://skills` | Skill index: name, description, version (~100 tokens, no bodies) |
 | `synergy://skills/<name>` | Full `SKILL.md` body, fetched on demand |
 | `synergy://skills/<name>/<relpath>` | A file inside a skill directory, e.g. harvested `ccm help` output |
+
+Skills are served by the MCP server. They are not embedded into Claude Desktop MCPB or VS Code Copilot install artifacts.
 
 `synergy://status` is the single source of truth for "what can I do right now". If a tool the model expects is missing, status says why.
 

@@ -42,4 +42,4 @@ The CLI harvest is the first deliverable, because it is cheap, it is the most au
 - Phase 2 requires a live 7.2 client for the harvest, so it cannot be done from a laptop with no Synergy access.
 - The corpus is site-specific by design, which means it cannot be validated centrally. `scripts/forge_validate.py` enforces the schema; correctness of the content is the site's own harvest.
 - Adds a `knowledge` group and therefore tool-schema cost. It stays out of `lean` until it earns its place.
-- Once the CLI harvest exists, the `synergy-ccm-reference` skill can shrink to routing and caveats, because the authoritative text is retrievable.
+- Once the CLI harvest exists, the `synergy-knowledge-corpus` skill can stay focused on lookup and citation, because the authoritative text is retrievable.

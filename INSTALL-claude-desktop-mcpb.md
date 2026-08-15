@@ -8,6 +8,8 @@ This flow builds a local Claude Desktop MCPB bundle that starts `synergy-mcp` ov
 
 The bundle points at the repo-local Python virtual environment under `synergy-mcp/.venv` and the repo-local `synergy-mcp/inventory.yaml`.
 
+Synergy skills are not embedded in the MCPB. They are served by the MCP server through `synergy://skills` resources.
+
 ## Before you start
 
 - Install Claude Desktop.

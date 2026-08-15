@@ -34,6 +34,8 @@ Documentation for `synergy-mcp`, an MCP server exposing IBM Rational Synergy 7.2
 | [skills-routing.md](skills-routing.md) | The skill set, frontmatter contract, how skills are served and versioned. |
 | [dynamic-tool-discovery-and-routing.md](dynamic-tool-discovery-and-routing.md) | Token economics, profiles, intent tagging, ranking rules. |
 
+Served skill bodies live under [../skills/](../skills/) and are exposed at runtime through `synergy://skills` resources. They are not embedded into client install artifacts.
+
 ## Design history
 
 [plan/](plan/README.md) records how the architecture was arrived at — what was considered, what was rejected, and why. `architecture.md` records what is true now; when the two disagree, `architecture.md` wins.

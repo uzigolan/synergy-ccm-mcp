@@ -10,10 +10,12 @@ Loading every skill on every turn wastes context. Instead one small always-on sk
 
 | Skill | Loaded | Owns |
 |---|---|---|
-| `synergy-core` | Always, at session start | Safety rules, session-opening ritual, object-model grounding, routing table |
-| `synergy-ccm-reference` | On demand | Exact `ccm` 7.2 verb syntax, flags, `-f` format specifiers, exit-code behaviour |
+| `synergy-core` | Always, at session start | Safety rules, session-opening ritual, routing table, common read-only workflows |
 | `synergy-query-language` | On demand | Query grammar, functions (`is_member_of`, `has_predecessor`, …), recipe cookbook |
-| `synergy-db-mng` | On demand | Inventory CRUD, credential workflow, attach mode |
+| `synergy-object-model` | On demand | Four-part names, object types, properties, attributes, content, history, diffs, `finduse` |
+| `synergy-task-project` | On demand | Tasks, releases, baselines, project members, project grouping, release audits |
+| `synergy-knowledge-corpus` | On demand | Served corpus lookup, harvested `ccm help`, IBM/manual reference, syntax citation |
+| `synergy-troubleshooting` | On demand | Runtime failures: missing `ccm`, stale sessions, auth, inventory, licence seats, empty results |
 
 `synergy-core` is deliberately the only one with a standing context cost.
 
@@ -23,10 +25,12 @@ Loading every skill on every turn wastes context. Instead one small always-on sk
 
 | User intent | Load |
 |---|---|
-| "what does `ccm history` output mean", "which flag lists attributes" | `synergy-ccm-reference` |
+| "what does `ccm history` output mean", "which flag lists attributes" | `synergy-knowledge-corpus` |
 | "find all objects that…", "write me a query for…" | `synergy-query-language` |
-| "add my database", "where do credentials go", "remove that entry" | `synergy-db-mng` |
-| "who changed X", "what is in release Y" | none — the workflow is in `synergy-core` |
+| "what is this object name", "show this version", "where is this object used" | `synergy-object-model` |
+| "who changed X", "what is in release Y", "compare baselines" | `synergy-task-project` |
+| "ccm not found", "no password", "session stale", "query timed out" | `synergy-troubleshooting` |
+| "install Claude", "install VS Code", "build MCPB" | none — installation is docs/scripts, not skills |
 | Anything mutating | none — refuse, cite the read-only posture |
 
 ## Frontmatter contract
@@ -44,7 +48,7 @@ version: 1.0.0
 families: [ccm72]
 servers: [synergy-mcp, synergy-db]
 requires_tools:
-  - ccm_query
+  - query
   - find_tasks
 ---
 ```
@@ -58,17 +62,17 @@ requires_tools:
 | `servers` | Server names this skill ships with; `[]` means all |
 | `requires_tools` | Tools the skill's instructions call. Checked against the live registry. |
 
-`requires_tools` is what makes a degraded profile visible: if a skill requires `find_tasks` but the `task` group is disabled, `synergy://status` reports `missing_tools` for that skill instead of the model silently failing mid-workflow.
+`requires_tools` is what makes a degraded profile visible: if a skill requires `find_tasks` but the `task` group is disabled, `synergy://status` reports `missing_tools` for that skill instead of the model silently failing mid-workflow. The same status payload is the authoritative list of served skill names and versions expected by this server.
 
 ## Serving skills
 
-Skills live on disk under `skills/` and are also served as resources so a remote client gets identical knowledge:
+Synergy skills are **served only**. They live on disk under `skills/` and are exposed by the MCP server as resources. They are not embedded into the Claude Desktop MCPB, VS Code config or any client-side plugin bundle.
 
 | URI | Payload |
 |---|---|
 | `synergy://skills` | Index — name, description, version only. ~100 tokens. |
 | `synergy://skills/<name>` | Full `SKILL.md` body |
-| `synergy://skills/<name>/<relpath>` | A file under the skill directory, e.g. `references/ccm-help-query.md` |
+| `synergy://skills/<name>/<relpath>` | Reserved for future reference assets under a skill directory |
 
 Path traversal is blocked in `skills.skill_file()`; `<relpath>` is resolved and confirmed to stay inside the skill directory.
 
@@ -100,11 +104,11 @@ Structure, in order:
 
 Style rules:
 
-- Reference tools by exact name with argument shape: `ccm_query(database, expression, fields)`.
+- Reference tools by exact live name with argument shape: `query(database, expression, fields)` or the client-visible alias if one is present.
 - Quote tool docstrings verbatim where they define a contract; do not paraphrase.
 - File paths in backticks.
 - Tables for enumerable facts, prose for judgement calls.
-- Cross-link sibling skills by name in bold: load the **`synergy-ccm-reference`** skill.
+- Cross-link sibling skills by name in bold: load the **`synergy-knowledge-corpus`** skill.
 
 ## Anti-patterns
 

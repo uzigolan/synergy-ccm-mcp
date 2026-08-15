@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MCP server exposing IBM Rational Synergy 7.2 (ccm CLI) as read-only tools"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp>=1.2.0",
+    "mcp>=1.2.0,<2.0.0",
     "PyYAML>=6.0",
 ]
 

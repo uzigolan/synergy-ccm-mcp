@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import re
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
+import yaml
 
 from .config import ServerConfig, load_config
 from .exec import CcmError
@@ -18,7 +22,7 @@ from .formats import (
     is_empty_result,
     parse_rows,
 )
-from .knowledge import KnowledgeError, search_knowledge
+from .knowledge import KnowledgeError, corpus_root, search_knowledge
 from .session import SessionManager
 
 log = logging.getLogger("synergy_mcp")
@@ -28,6 +32,31 @@ mcp = FastMCP("synergy-mcp")
 # Object names are interpolated into ccm query expressions, so anything that
 # could break out of a single-quoted literal is rejected up front.
 _OBJECTNAME_RE = re.compile(r"^[A-Za-z0-9_.:~#+\-/\\ ]{1,400}$")
+_SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
+_REGISTERED_TOOLS = frozenset(
+    {
+        "list_databases",
+        "health_check",
+        "ccm_version",
+        "query",
+        "object_properties",
+        "object_attributes",
+        "attribute_value",
+        "object_content",
+        "object_history",
+        "object_diff",
+        "find_use",
+        "task_info",
+        "task_objects",
+        "find_tasks",
+        "project_members",
+        "find_baselines",
+        "project_grouping_info",
+        "run_readonly_command",
+        "knowledge_search",
+        "check_skill_version",
+    }
+)
 
 
 @lru_cache(maxsize=1)
@@ -65,6 +94,90 @@ def _text_tool(database: str, argv: list[str], *, timeout: int | None = None) ->
         "truncated": result.truncated,
         "empty": False,
     }
+
+
+def _skills_root() -> Path:
+    return corpus_root() / "skills"
+
+
+def _safe_skill_dir(name: str) -> Path:
+    if not _SKILL_NAME_RE.match(name):
+        raise ValueError(f"Invalid skill name {name!r}.")
+    root = _skills_root().resolve()
+    path = (root / name).resolve()
+    if root not in path.parents or not path.is_dir():
+        raise ValueError(f"Unknown skill {name!r}.")
+    return path
+
+
+def _read_skill(name: str) -> tuple[dict, str]:
+    path = _safe_skill_dir(name) / "SKILL.md"
+    if not path.exists():
+        raise ValueError(f"Skill {name!r} has no SKILL.md.")
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        raise ValueError(f"Skill {name!r} is missing YAML frontmatter.")
+    _, frontmatter, _ = text.split("---", 2)
+    meta = yaml.safe_load(frontmatter) or {}
+    return meta, text
+
+
+def _server_version() -> str:
+    try:
+        return version("synergy-mcp")
+    except PackageNotFoundError:
+        return "0.0.0+local"
+
+
+def _skill_records() -> list[dict]:
+    skills = []
+    root = _skills_root()
+    if root.exists():
+        for path in sorted(root.glob("*/SKILL.md")):
+            meta, _ = _read_skill(path.parent.name)
+            required = list(meta.get("requires_tools") or [])
+            skills.append(
+                {
+                    "name": meta.get("name", path.parent.name),
+                    "description": meta.get("description", ""),
+                    "version": str(meta.get("version", "")),
+                    "families": meta.get("families", []),
+                    "servers": meta.get("servers", []),
+                    "requires_tools": required,
+                    "missing_tools": [tool for tool in required if tool not in _REGISTERED_TOOLS],
+                    "delivery": "served",
+                }
+            )
+    return skills
+
+
+@mcp.resource("synergy://status", mime_type="application/json")
+def status_resource() -> str:
+    """Report server version, read-only posture, registered tools and expected served skills."""
+    return json.dumps(
+        {
+            "server": "synergy-mcp",
+            "server_version": _server_version(),
+            "read_only": True,
+            "skill_delivery": "served",
+            "skills": _skill_records(),
+            "tools": sorted(_REGISTERED_TOOLS),
+        },
+        indent=2,
+    )
+
+
+@mcp.resource("synergy://skills", mime_type="application/json")
+def skills_index() -> str:
+    """List served Synergy skills without loading their full bodies."""
+    return json.dumps({"skills": _skill_records()}, indent=2)
+
+
+@mcp.resource("synergy://skills/{name}", mime_type="text/markdown")
+def skill_resource(name: str) -> str:
+    """Return a served Synergy skill body."""
+    _, text = _read_skill(name)
+    return text
 
 
 @mcp.tool()
@@ -241,6 +354,12 @@ def find_baselines(database: str, release: str | None = None, max_rows: int | No
 
 
 @mcp.tool()
+def project_grouping_info(database: str, project: str) -> dict:
+    """Show project grouping information for a project (`ccm project_grouping`)."""
+    return _text_tool(database, ["project_grouping", _safe_object(project, "project")])
+
+
+@mcp.tool()
 def run_readonly_command(database: str, args: list[str]) -> dict:
     """Escape hatch: run an allowlisted read-only ccm command as an argv list.
 
@@ -262,6 +381,37 @@ def knowledge_search(
         return search_knowledge(search, corpus=corpus, family=family, limit=limit)
     except KnowledgeError as exc:
         raise ValueError(f"UNAVAILABLE: {exc}") from exc
+
+
+@mcp.tool()
+def check_skill_version(name: str, client_version: str) -> dict:
+    """Compare a client's loaded served skill version with the server's expected version."""
+    records = {record["name"]: record for record in _skill_records()}
+    if name not in records:
+        return {
+            "name": name,
+            "known": False,
+            "client_version": client_version,
+            "server_version": None,
+            "match": False,
+            "alerts": [f"Unknown Synergy skill {name!r}. Read synergy://skills for the served index."],
+        }
+    record = records[name]
+    match = str(record["version"]) == str(client_version)
+    alerts = [] if match else [
+        f"Skill {name} version drift: client has {client_version}, server expects {record['version']}."
+    ]
+    if record["missing_tools"]:
+        alerts.append(f"Skill {name} requires missing tools: {', '.join(record['missing_tools'])}.")
+    return {
+        "name": name,
+        "known": True,
+        "client_version": client_version,
+        "server_version": record["version"],
+        "match": match,
+        "missing_tools": record["missing_tools"],
+        "alerts": alerts,
+    }
 
 
 def run() -> None:

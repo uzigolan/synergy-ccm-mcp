@@ -8,6 +8,8 @@ This flow configures VS Code GitHub Copilot to start `synergy-mcp` locally over 
 
 It writes `.vscode/mcp.json` in this repository. The command points at the repo-local Python virtual environment under `synergy-mcp/.venv`.
 
+Synergy skills are not installed into VS Code as embedded files. They are served by the MCP server through `synergy://skills` resources.
+
 ## Before you start
 
 - Install VS Code and the official GitHub Copilot extension.

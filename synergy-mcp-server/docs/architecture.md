@@ -11,14 +11,14 @@ This is the canonical architecture document. `docs/plan/` records how the decisi
 `synergy-mcp` exposes an **IBM Rational Synergy 7.2** database to an AI agent through the `ccm` command-line client.
 
 - **Phase 1 is read-only.** No object is created, modified, checked out or deleted. Write tools are not merely unimplemented — they are rejected by the policy layer.
-- The server runs **on the same host as the `ccm` client** (Linux/UNIX). There is no SSH hop; the backend is a local `subprocess`.
+- The server runs **on the same host as the `ccm` client** (Windows or Linux). There is no SSH hop; the backend is a local `subprocess`.
 - Target CLI is **Synergy 7.2**. Command syntax is pinned by a driver (`Ccm72Driver`) so a future 7.1 or 6.5 driver can differ without touching the tool layer.
 
 ## Stack
 
 | Layer | Choice | Why |
 |---|---|---|
-| MCP framework | `fastmcp>=2.0` | Decorator-based tool registration; mature Python MCP implementation. |
+| MCP framework | `mcp>=1.2,<2.0` / FastMCP | Decorator-based tool and resource registration; pinned below 2.0 because this server imports `mcp.server.fastmcp`. |
 | Language | Python ≥ 3.10 | PEP 604 unions, dataclasses, `dict[str, str]` builtins. |
 | Transport to Synergy | `subprocess` with **argv lists** | Never `shell=True`; query expressions are full of quotes. |
 | Config | `inventory.yaml` (facts) + `.env` (secrets) | Secrets never enter the repo or the model's context. |
@@ -30,9 +30,8 @@ This is the canonical architecture document. `docs/plan/` records how the decisi
 synergy-ccm-mcp/                      <- repo root
 ├── tool_profile.config.json          # profile + group flags
 ├── synergy-mcp-server/
-│   ├── inventory.example.yaml
-│   ├── .mcp.json
 │   ├── packages/
+│   ├── skills/                      # served-only SKILL.md files
 │   │   ├── synergy-core/             # shared mechanism: audit, boundary, scope,
 │   │   │                             #   safety, paths, inventory, formats,
 │   │   │                             #   drivers/, backends/
@@ -99,12 +98,14 @@ Attach mode is the recommended production posture: a human starts the session, t
 | Layer | Lives in | Loaded |
 |---|---|---|
 | Safety + workflow rules | `skills/synergy-core/SKILL.md` | Session start |
-| `ccm` command syntax for 7.2 | `skills/synergy-ccm-reference/SKILL.md` | On demand |
 | Query-language grammar + recipes | `skills/synergy-query-language/SKILL.md` | On demand |
-| Inventory management | `skills/synergy-db-mng/SKILL.md` | On demand |
-| Harvested `ccm help` output | `skills/*/references/` | On demand |
+| Object model and object inspection | `skills/synergy-object-model/SKILL.md` | On demand |
+| Task, release, project and baseline workflows | `skills/synergy-task-project/SKILL.md` | On demand |
+| Exact `ccm` syntax and IBM/manual reference lookup | `skills/synergy-knowledge-corpus/SKILL.md` | On demand |
+| Runtime troubleshooting | `skills/synergy-troubleshooting/SKILL.md` | On demand |
+| Harvested `ccm help` and manual corpus | `build/synergy-knowledge.sqlite` | On demand via `knowledge_search` |
 
-Skills are served to remote clients as `synergy://skills/<name>` resources so a non-filesystem client gets identical knowledge.
+Skills are served to clients as `synergy://skills/<name>` resources so a non-filesystem client gets identical knowledge. They are not embedded into Claude Desktop MCPB or VS Code install artefacts.
 
 ## Audit
 

@@ -15,7 +15,7 @@
 | `synergy-mcp` (server) | 0.1.0 | Combined server |
 | `synergy-core` | 0.1.0 | Locked to server |
 | `synergy-db` | 0.1.0 | Locked to server |
-| `fastmcp` | ≥ 2.0 | MCP framework |
+| `mcp` / FastMCP | ≥ 1.2, < 2.0 | MCP framework; pinned below 2.0 because this server imports `mcp.server.fastmcp` |
 | Python | ≥ 3.10 | PEP 604 unions |
 
 ## Skill versions
@@ -23,9 +23,11 @@
 | Skill | Version | Covers |
 |---|---|---|
 | `synergy-core` | 1.0.0 | Safety rules, session ritual, routing |
-| `synergy-ccm-reference` | 1.0.0 | `ccm` 7.2 verb syntax |
 | `synergy-query-language` | 1.0.0 | Query grammar and recipes |
-| `synergy-db-mng` | 1.0.0 | Inventory and credentials |
+| `synergy-object-model` | 1.0.0 | Four-part names, object inspection, history and diffs |
+| `synergy-task-project` | 1.0.0 | Tasks, releases, projects, baselines and audits |
+| `synergy-knowledge-corpus` | 1.0.0 | Harvested `ccm help`, IBM/manual reference and syntax citation |
+| `synergy-troubleshooting` | 1.0.0 | Runtime failures, sessions, credentials, inventory and query issues |
 
 Bump the minor version for new content, the patch version for corrections, and the major version when previously documented guidance becomes wrong.
 

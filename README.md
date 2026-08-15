@@ -155,6 +155,7 @@ Start at [docs/README.md](synergy-mcp-server/docs/README.md).
 | [INSTALL.html](INSTALL.html) | Browser-friendly install guide with copy buttons |
 | [knowledge-sources.md](synergy-mcp-server/docs/knowledge-sources.md) | IBM Docs links and local corpus ingest sources |
 | [examples.md](synergy-mcp-server/docs/examples.md) | What users can ask from Synergy |
+| [skills/](synergy-mcp-server/skills) | Served-only runtime/domain skills exposed as `synergy://skills` resources |
 | [plan/](synergy-mcp-server/docs/plan/README.md) | Design decisions and rejected alternatives |
 
 ## Compatibility
