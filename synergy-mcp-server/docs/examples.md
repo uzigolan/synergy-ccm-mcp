@@ -1,8 +1,102 @@
 # Examples
 
-**Contents:** [Setup](#setup) · [Query recipes](#query-recipes) · [Object inspection](#object-inspection) · [Tasks](#tasks) · [Projects and baselines](#projects-and-baselines) · [Escape hatch](#escape-hatch) · [Reading the output](#reading-the-output) · [Things that will bite you](#things-that-will-bite-you)
+**Contents:** [What users can ask](#what-users-can-ask) · [Good question patterns](#good-question-patterns) · [Read-only boundary](#read-only-boundary) · [Setup](#setup) · [Query recipes](#query-recipes) · [Object inspection](#object-inspection) · [Tasks](#tasks) · [Projects and baselines](#projects-and-baselines) · [Knowledge corpus](#knowledge-corpus) · [Escape hatch](#escape-hatch) · [Reading the output](#reading-the-output) · [Things that will bite you](#things-that-will-bite-you)
 
 All examples assume an inventory entry named `prod-core`. Commands shown as `ccm ...` are what the server runs on your behalf; you do not type them.
+
+## What users can ask
+
+These are the kinds of questions this MCP is meant to answer after it is connected to a Rational Synergy database.
+
+### Health and context
+
+- Is the Synergy MCP connected to `prod-core`?
+- Which Synergy databases can you see?
+- What Synergy client version is this MCP using?
+- Is this MCP attached to an existing Synergy session or did it start its own session?
+- What delimiter does this database use for object versions?
+
+### File and object history
+
+- Who changed `parser.c`?
+- Show me all versions of `parser.c`.
+- What changed between `parser.c-6:csrc:1` and `parser.c-7:csrc:1`?
+- Show the contents of `config.xml-12:ascii:1` without checking it out.
+- What task created this object version?
+- What else changed in the same task as `parser.c-7:csrc:1`?
+- Where is `libcommon.a-4:binary:1` used?
+- Show the properties and attributes of `core-int:project:1`.
+
+### Tasks and changes
+
+- What is task `4711` about?
+- Which files were changed by task `4711`?
+- Find completed tasks for release `product/2.0`.
+- Find assigned or incomplete tasks for release `product/2.0`.
+- What has user `uzi` worked on in release `product/2.0`?
+- Summarize the largest tasks in this release by number of changed objects.
+- Find tasks touching `parser.c` and show their synopses.
+
+### Projects, releases and baselines
+
+- What are the direct members of `core-int:project:1`?
+- Walk the project hierarchy for `core-int:project:1`, but cap the result.
+- Which baselines exist for release `product/2.0`?
+- Compare these two baselines by task set.
+- Which project versions contain this object?
+- Show project grouping information for `core-int:project:1`.
+
+### Release audit and investigation
+
+- What is in release `product/2.0`?
+- Which tasks are still open for `product/2.0`?
+- Are there checked-in objects that have not been released yet?
+- Find source objects currently in `integrate` status.
+- Find objects modified since `Mon Jan 1 2026`.
+- Give me a release-readiness summary for `product/2.0`.
+
+### Synergy CLI and documentation reference
+
+- What does `ccm query -u` mean?
+- How does `ccm project_grouping` work in Synergy 7.2.1?
+- What does IBM documentation say about administering the CCM server?
+- Search the harvested Synergy docs for `CCM server`.
+- Before using a raw `ccm` command, check the harvested help or IBM docs for the exact syntax.
+
+## Good question patterns
+
+Good questions name at least one anchor: a database, file name, object name, task number, release, baseline or project.
+
+| If you know | Ask |
+|---|---|
+| File name | Who changed `parser.c`, and what task was it part of? |
+| Object version | Show history and task context for `parser.c-7:csrc:1`. |
+| Task number | Summarize task `4711` and list changed objects. |
+| Release | Find completed and still-open tasks for `product/2.0`. |
+| Project | List direct members of `core-int:project:1`. |
+| Baselines | Compare baseline A and baseline B by task set. |
+| CLI syntax | Search the corpus for `ccm task -show objects`. |
+
+Prefer bounded questions first. For example, ask for direct project members before asking for a recursive project hierarchy.
+
+## Read-only boundary
+
+This MCP can investigate and explain. It cannot modify Synergy in phase 1.
+
+Allowed questions:
+
+- Show me the contents of this file version.
+- Which objects are associated with this task?
+- What tasks are completed for this release?
+- What does the manual say about the CCM server?
+
+Refused questions:
+
+- Create a task.
+- Complete task `4711`.
+- Check out or check in this file.
+- Delete, rename, archive, migrate or purge an object.
+- Change users, typedefs or database administration state.
 
 ## Setup
 
@@ -120,6 +214,18 @@ Reverse dependency:
 ```
 find_use(db, "libcommon.a-4:binary:1")
 ```
+
+## Knowledge corpus
+
+Search harvested `ccm help` and ingested IBM/manual reference material:
+
+```
+knowledge_search("ccm query -u", corpus="cli")
+knowledge_search("CCM server", corpus="manual")
+knowledge_search("project_grouping", family="ccm72")
+```
+
+Use the corpus before answering detailed CLI syntax questions. Search results include `source`, `source_version` and `trust`, so answers can say whether they came from live `ccm help` output or IBM reference documentation.
 
 ## Escape hatch
 

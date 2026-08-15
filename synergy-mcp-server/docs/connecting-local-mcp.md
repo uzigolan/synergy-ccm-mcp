@@ -47,13 +47,15 @@ databases:
 
 ## Credentials
 
-Secrets are set out-of-band by a human. The server never writes them and the model never sees them.
+Secrets are set out-of-band by a human. The server never writes them and the model never sees them. In the normal read-only deployment, configure one MCP-level Synergy identity:
 
 ```bash
-synergy-mcp-set-credentials prod-core --user uzi
+synergy-mcp-set-credentials --user uzi
 ```
 
-This prompts for the password and writes it to `synergy-mcp-server/server/.env` as `SYNERGY_PROD_CORE_PASSWORD`. Do not edit `inventory.yaml` to add a `password:` key — the loader rejects that outright.
+This prompts for the password and writes it to `synergy-mcp-server/server/.env` as `SYNERGY_MCP_USER` and `SYNERGY_MCP_PASSWORD`. Every client using this MCP server then accesses Synergy through that same account. For phase 1, use a Synergy account with read access only, because the enabled `query`, `object`, `task` and `project` groups are all read-only.
+
+Per-database overrides are still available for exceptional cases: set `SYNERGY_<DB>_USER` and `SYNERGY_<DB>_PASSWORD`, where `<DB>` is the inventory name upper-cased with non-alphanumerics replaced by `_`. Do not edit `inventory.yaml` to add a `password:` key — the loader rejects that outright.
 
 ## Attach mode (recommended)
 
@@ -117,6 +119,8 @@ Then read `synergy://status` and confirm the profile and enabled groups are what
 | `SYNERGY_MCP_INVENTORY` | auto | Override inventory path |
 | `SYNERGY_MCP_LOG_DIR` | `logs/` | Audit log destination |
 | `SYNERGY_MCP_ENV_FILE` | `server/.env` | Credential file |
+| `SYNERGY_MCP_USER` | — | Shared Synergy user for all databases without an override |
+| `SYNERGY_MCP_PASSWORD` | — | Shared Synergy password for all databases without an override |
 | `SYNERGY_<DB>_USER` | — | Per-database user |
 | `SYNERGY_<DB>_PASSWORD` | — | Per-database password |
 | `SYNERGY_<DB>_CCM_ADDR` | — | Attach mode session address |

@@ -61,11 +61,13 @@ databases:
     groups: [production]
 ```
 
-Then either set credentials out-of-band:
+Then either set one MCP-level identity out-of-band:
 
 ```bash
-synergy-mcp-set-credentials prod-core --user your-name
+synergy-mcp-set-credentials --user your-name
 ```
+
+Every client using this MCP server will access Synergy through that same account. Use a read-only Synergy account for the phase 1 `query`, `object`, `task` and `project` tool groups. Per-database `SYNERGY_<DB>_USER` and `SYNERGY_<DB>_PASSWORD` variables are still supported when one database needs a different identity.
 
 …or, preferably, use **attach mode** so the server never handles a password:
 

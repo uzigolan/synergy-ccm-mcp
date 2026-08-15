@@ -34,20 +34,26 @@ class DatabaseConfig:
         return "SYNERGY_" + "".join(c if c.isalnum() else "_" for c in self.name).upper()
 
     def resolve_user(self) -> str:
-        value = os.environ.get(f"{self.env_prefix}_USER") or self.user
+        value = (
+            os.environ.get(f"{self.env_prefix}_USER")
+            or self.user
+            or os.environ.get("SYNERGY_MCP_USER")
+        )
         if not value:
             raise ConfigError(
-                f"No user for database '{self.name}'. Set {self.env_prefix}_USER "
-                f"or add 'user:' to inventory.yaml."
+                f"No user for database '{self.name}'. Set {self.env_prefix}_USER, "
+                f"set SYNERGY_MCP_USER, or add 'user:' to inventory.yaml."
             )
         return value
 
     def resolve_password(self) -> str:
-        value = os.environ.get(f"{self.env_prefix}_PASSWORD")
+        value = os.environ.get(f"{self.env_prefix}_PASSWORD") or os.environ.get(
+            "SYNERGY_MCP_PASSWORD"
+        )
         if not value:
             raise ConfigError(
                 f"No password for database '{self.name}'. Set {self.env_prefix}_PASSWORD "
-                f"in the environment (never in inventory.yaml)."
+                f"or SYNERGY_MCP_PASSWORD in the environment (never in inventory.yaml)."
             )
         return value
 

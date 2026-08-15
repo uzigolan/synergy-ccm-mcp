@@ -23,6 +23,8 @@ The corpus answers questions the live database cannot: what a `ccm` flag means, 
 
 Harvested CLI help is the highest-value source, because it is ground truth for *your* installation rather than for a generic 7.2.
 
+The official online/manual source checklist is maintained in [knowledge-sources.md](knowledge-sources.md). Source PDFs and entitled IBM content are not redistributed by this repository; ingest them locally after download or extraction.
+
 ## Directory layout
 
 ```

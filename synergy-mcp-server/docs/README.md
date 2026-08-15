@@ -19,6 +19,7 @@ Documentation for `synergy-mcp`, an MCP server exposing IBM Rational Synergy 7.2
 | [mcp-capabilities.md](mcp-capabilities.md) | Every tool, resource and prompt, with signatures and return shapes. |
 | [ccm-contract.md](ccm-contract.md) | **Safety-critical.** Allowlist, denylist, argument validation, output boundary, audit schema. |
 | [corpus-contract.md](corpus-contract.md) | Phase 2 knowledge corpus: sources, schema, chunking, provenance. |
+| [knowledge-sources.md](knowledge-sources.md) | Official IBM Docs links, local `ccm help` harvest source and ingest commands. |
 | [VERSIONS.md](VERSIONS.md) | Version policy, component matrix, Synergy compatibility. |
 | [plan/GLOSSARY.md](plan/GLOSSARY.md) | Terms, Synergy and toolkit alike. |
 

@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 synergy-mcp = "synergy_mcp.__main__:main"
+synergy-knowledge = "synergy_mcp.knowledge_cli:main"
 
 [build-system]
 requires = ["hatchling"]

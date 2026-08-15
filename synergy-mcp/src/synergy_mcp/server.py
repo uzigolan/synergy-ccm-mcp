@@ -18,6 +18,7 @@ from .formats import (
     is_empty_result,
     parse_rows,
 )
+from .knowledge import KnowledgeError, search_knowledge
 from .session import SessionManager
 
 log = logging.getLogger("synergy_mcp")
@@ -247,6 +248,20 @@ def run_readonly_command(database: str, args: list[str]) -> dict:
     are rejected by the policy layer.
     """
     return _text_tool(database, [str(a) for a in args])
+
+
+@mcp.tool()
+def knowledge_search(
+    search: str,
+    corpus: str | None = None,
+    family: str | None = None,
+    limit: int = 10,
+) -> dict:
+    """Search the local Synergy reference corpus built from ccm help and manuals."""
+    try:
+        return search_knowledge(search, corpus=corpus, family=family, limit=limit)
+    except KnowledgeError as exc:
+        raise ValueError(f"UNAVAILABLE: {exc}") from exc
 
 
 def run() -> None:
