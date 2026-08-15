@@ -17,8 +17,9 @@ The `ccm` client must be local to whichever process runs the backend. In remote 
 Registers every enabled group into one FastMCP app. This is the default and what `.mcp.json` points at.
 
 ```bash
-cd synergy-mcp-server/server
-. .venv/bin/activate
+cd rad-synergy-toolkit
+bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh
+. synergy-mcp/.venv/bin/activate
 python -m synergy_mcp
 ```
 

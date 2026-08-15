@@ -1,0 +1,14 @@
+settings:
+  ccm_binary: ccm
+  command_timeout: 120
+  start_timeout: 300
+  max_rows: 500
+  max_output_bytes: 200000
+
+databases:
+  - name: prod-core
+    database: /opt/ccm/db/core
+    host: buildhost
+    server_url: http://buildhost:8400
+    role: developer
+    description: Core product Synergy database

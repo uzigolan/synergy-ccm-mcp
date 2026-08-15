@@ -1,0 +1,55 @@
+param(
+    [string]$Name = "synergy-ccm-mcp"
+)
+
+$ErrorActionPreference = "Stop"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
+$ServerInstaller = Join-Path $RepoRoot "synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1"
+
+& $ServerInstaller
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$VenvPython = Join-Path $RepoRoot "synergy-mcp\.venv\Scripts\python.exe"
+$Inventory = Join-Path $RepoRoot "synergy-mcp\inventory.yaml"
+$Dist = Join-Path $RepoRoot "synergy-mcp-server\dist"
+$McpbDir = Join-Path $Dist "claude-desktop-mcpb"
+$LocalJsonDir = Join-Path $Dist "claude-desktop-local-mcp"
+$TempDir = Join-Path $Dist "claude-desktop-mcpb-work"
+$McpbFile = Join-Path $McpbDir "synergy-ccm-mcp-local.mcpb"
+$McpbZip = Join-Path $McpbDir "synergy-ccm-mcp-local.zip"
+$LocalJsonFile = Join-Path $LocalJsonDir "synergy-ccm-mcp-local-mcp-server.json"
+
+New-Item -ItemType Directory -Force -Path $McpbDir, $LocalJsonDir | Out-Null
+Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+
+$server = [pscustomobject]@{
+    type = "stdio"
+    command = $VenvPython
+    args = @("-m", "synergy_mcp")
+    env = [pscustomobject]@{ SYNERGY_MCP_INVENTORY = $Inventory }
+}
+
+$mcpServers = New-Object psobject
+$mcpServers | Add-Member -MemberType NoteProperty -Name $Name -Value $server
+[pscustomobject]@{ mcpServers = $mcpServers } | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 $LocalJsonFile
+
+$manifestServers = New-Object psobject
+$manifestServers | Add-Member -MemberType NoteProperty -Name $Name -Value $server
+$manifest = [pscustomobject]@{
+    name = "synergy-ccm-mcp"
+    display_name = "Synergy CCM MCP"
+    version = "0.1.0"
+    description = "Read-only IBM Rational Synergy MCP server over local stdio."
+    mcpServers = $manifestServers
+}
+$manifest | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 (Join-Path $TempDir "manifest.json")
+Compress-Archive -Path (Join-Path $TempDir "*") -DestinationPath $McpbZip -Force
+Move-Item -Force $McpbZip $McpbFile
+Remove-Item -Recurse -Force $TempDir
+
+Write-Host ""
+Write-Host "Done. Claude Desktop artifacts created:"
+Write-Host "  MCPB:           $McpbFile"
+Write-Host "  Local MCP JSON: $LocalJsonFile"
+Write-Host "Import the MCPB in Claude Desktop Settings -> Extensions, then fully restart Claude Desktop."

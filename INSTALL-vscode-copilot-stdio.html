@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installing the Synergy CCM MCP Toolkit — VS Code Copilot</title>
+<style>
+  :root { color-scheme: light dark; --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --code-bg:#f6f8fa; --active:#0b6bcb; --panel:#eef2f7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --border:#3d444d; --code-bg:#161b22; --active:#1f6feb; --panel:#0f141b; } }
+  body { margin:0 auto; max-width:960px; padding:2rem 1.25rem 3rem; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  h1 { font-size:1.8rem; line-height:1.25; margin:0 0 1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem; }
+  h2 { font-size:1.2rem; margin:1.2rem 0 .7rem; }
+  p { margin:.65rem 0; }
+  a { color:var(--active); }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; }
+  th, td { border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:1rem; margin:1rem 0; }
+  code { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.9em; background:var(--code-bg); border:1px solid var(--border); border-radius:4px; padding:.1em .35em; }
+  pre { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:2.1rem 1rem .9rem; overflow-x:auto; position:relative; }
+  pre code { background:none; border:none; padding:0; }
+  .copy-cmd-btn { position:absolute; top:.45rem; right:.45rem; border:1px solid var(--border); background:var(--panel); color:var(--fg); border-radius:6px; padding:.2rem .5rem; font-size:.75rem; cursor:pointer; }
+  .copy-cmd-btn:hover { border-color:var(--active); color:var(--active); }
+  .copy-cmd-btn.copied { color:#0b7a43; border-color:#0b7a43; }
+  ul, ol { padding-left:1.35rem; }
+  li { margin:.2rem 0; }
+  hr { border:none; border-top:1px solid var(--border); margin:1.4rem 0; }
+</style>
+</head>
+<body>
+<h1>Installing the Synergy CCM MCP Toolkit</h1>
+<p class="muted">VS Code GitHub Copilot + MCP stdio — local flow.</p>
+
+<div class="panel">
+  <h2>Contents</h2>
+  <p><a href="#what">What this installs</a> · <a href="#before">Before you start</a> · <a href="#server">Prepare the server</a> · <a href="#config">Write VS Code MCP config</a> · <a href="#verify">Reload and verify</a> · <a href="#generated">Generated config</a></p>
+</div>
+
+<h2 id="what">What this installs</h2>
+<p>This flow configures VS Code GitHub Copilot to start <code>synergy-mcp</code> locally over stdio.</p>
+<p>It writes <code>.vscode/mcp.json</code> in this repository. The command points at the repo-local Python virtual environment under <code>synergy-mcp/.venv</code>.</p>
+
+<h2 id="before">Before you start</h2>
+<ul>
+  <li>Install VS Code and the official GitHub Copilot extension.</li>
+  <li>Install the Synergy <code>ccm</code> client on this machine.</li>
+  <li>Run all commands from the repo root, <code>rad-synergy-toolkit/</code>.</li>
+</ul>
+
+<h2 id="server">Step 1 - Prepare the server</h2>
+<p>Windows PowerShell:</p>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1</code></pre>
+<p>Linux bash:</p>
+<pre><code>bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh</code></pre>
+
+<h2 id="config">Step 2 - Write VS Code MCP config</h2>
+<p>Windows PowerShell:</p>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-vscode-copilot-stdio.ps1</code></pre>
+<p>Linux bash:</p>
+<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-vscode-copilot-stdio.sh</code></pre>
+
+<h2 id="verify">Step 3 - Reload and verify</h2>
+<ol>
+  <li>In VS Code, run <code>Developer: Reload Window</code>.</li>
+  <li>Open Copilot Chat in Agent mode.</li>
+  <li>Ask: <code>List the Synergy databases you can see.</code></li>
+  <li>Ask: <code>Run health_check for prod-core.</code></li>
+</ol>
+
+<h2 id="generated">Generated config</h2>
+<p>The installer writes this shape to <code>.vscode/mcp.json</code>:</p>
+<pre><code>{
+  "servers": {
+    "synergy-ccm-mcp": {
+      "type": "stdio",
+      "command": "&lt;repo&gt;/synergy-mcp/.venv/Scripts/python.exe",
+      "args": ["-m", "synergy_mcp"],
+      "env": {
+        "SYNERGY_MCP_INVENTORY": "&lt;repo&gt;/synergy-mcp/inventory.yaml"
+      }
+    }
+  }
+}</code></pre>
+<p>On Linux the Python path is <code>synergy-mcp/.venv/bin/python</code>.</p>
+
+<hr>
+<p class="muted">End of guide. Main guide: <a href="INSTALL.html">INSTALL.html</a>.</p>
+<script>
+  document.querySelectorAll('pre > code').forEach(codeEl => {
+    const preEl = codeEl.parentElement;
+    if (!preEl || preEl.querySelector('.copy-cmd-btn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'copy-cmd-btn'; btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(codeEl.innerText.replace(/\u00a0/g, ' ')); btn.textContent = 'Copied'; btn.classList.add('copied'); }
+      catch { btn.textContent = 'Failed'; }
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1400);
+    });
+    preEl.appendChild(btn);
+  });
+</script>
+</body>
+</html>

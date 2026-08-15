@@ -34,12 +34,13 @@ env/
 .coverage
 htmlcov/
 
-# --- Licensed source documents (extracted markdown IS committed) -----------
+# --- Licensed source documents ---------------------------------------------
 manuals/**/*.pdf
 release-notes/**/*.pdf
 *.docx
 
 # --- Editors and OS --------------------------------------------------------
+.vscode/mcp.json
 .idea/
 .vs/
 *.swp

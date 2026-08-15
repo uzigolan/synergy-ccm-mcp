@@ -19,18 +19,21 @@ echo "$CCM_HOME"
 
 ## Install
 
+Windows PowerShell:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1
+```
+
+Linux bash:
+
 ```bash
-cd synergy-mcp-server/server
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ../packages/synergy-core -e ../packages/synergy-db -e .
+bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh
 ```
 
 ## Inventory
 
-```bash
-cp synergy-mcp-server/inventory.example.yaml synergy-mcp-server/inventory.yaml
-```
+The installer creates `synergy-mcp/inventory.yaml` from `synergy-mcp/inventory.example.yaml` if needed.
 
 Edit it to describe your databases. Facts only — **never credentials**:
 
@@ -53,7 +56,7 @@ Secrets are set out-of-band by a human. The server never writes them and the mod
 synergy-mcp-set-credentials --user uzi
 ```
 
-This prompts for the password and writes it to `synergy-mcp-server/server/.env` as `SYNERGY_MCP_USER` and `SYNERGY_MCP_PASSWORD`. Every client using this MCP server then accesses Synergy through that same account. For phase 1, use a Synergy account with read access only, because the enabled `query`, `object`, `task` and `project` groups are all read-only.
+Store `SYNERGY_MCP_USER` and `SYNERGY_MCP_PASSWORD` in the environment used to launch the MCP server. Every client using this MCP server then accesses Synergy through that same account. For phase 1, use a Synergy account with read access only, because the enabled `query`, `object`, `task` and `project` groups are all read-only.
 
 Per-database overrides are still available for exceptional cases: set `SYNERGY_<DB>_USER` and `SYNERGY_<DB>_PASSWORD`, where `<DB>` is the inventory name upper-cased with non-alphanumerics replaced by `_`. Do not edit `inventory.yaml` to add a `password:` key — the loader rejects that outright.
 
@@ -73,25 +76,24 @@ The server then never handles a credential, and it will not stop the session on 
 
 ## Client config
 
-`synergy-mcp-server/.mcp.json`:
+VS Code workspace config, `.vscode/mcp.json`:
 
 ```json
 {
-  "mcpServers": {
-    "synergy-mcp": {
+  "servers": {
+    "synergy-ccm-mcp": {
       "type": "stdio",
-      "command": "synergy-mcp-server/server/.venv/bin/python",
+      "command": "synergy-mcp/.venv/bin/python",
       "args": ["-m", "synergy_mcp"],
       "env": {
-        "SYNERGY_MCP_TOOL_PROFILE": "lean",
-        "SYNERGY_MCP_READONLY": "true"
+        "SYNERGY_MCP_INVENTORY": "synergy-mcp/inventory.yaml"
       }
     }
   }
 }
 ```
 
-For VS Code, the same block goes in `.vscode/mcp.json` under `servers`.
+The VS Code installer writes this automatically. Claude Desktop users can build a local MCPB with [INSTALL-claude-desktop-mcpb.md](../../INSTALL-claude-desktop-mcpb.md).
 
 ## Verify
 
@@ -118,7 +120,6 @@ Then read `synergy://status` and confirm the profile and enabled groups are what
 | `SYNERGY_MCP_ROOT` | auto | Override `synergy-mcp-server/` location |
 | `SYNERGY_MCP_INVENTORY` | auto | Override inventory path |
 | `SYNERGY_MCP_LOG_DIR` | `logs/` | Audit log destination |
-| `SYNERGY_MCP_ENV_FILE` | `server/.env` | Credential file |
 | `SYNERGY_MCP_USER` | — | Shared Synergy user for all databases without an override |
 | `SYNERGY_MCP_PASSWORD` | — | Shared Synergy password for all databases without an override |
 | `SYNERGY_<DB>_USER` | — | Per-database user |

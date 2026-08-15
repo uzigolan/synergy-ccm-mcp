@@ -36,20 +36,28 @@ This toolkit makes it reachable, without letting an agent anywhere near a write 
 
 Requires Python ≥ 3.10 and a Synergy 7.2 `ccm` client **on the same host**.
 
+Start with [INSTALL.md](INSTALL.md), then choose the client target:
+
+| Target | Guide |
+|---|---|
+| VS Code Copilot local stdio | [INSTALL-vscode-copilot-stdio.md](INSTALL-vscode-copilot-stdio.md) |
+| Claude Desktop MCPB | [INSTALL-claude-desktop-mcpb.md](INSTALL-claude-desktop-mcpb.md) |
+
+Prepare the local MCP server from the repo root:
+
 ```bash
-cd synergy-mcp-server/server
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ../packages/synergy-core -e ../packages/synergy-db -e .
+bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh
+```
+
+Windows PowerShell:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1
 ```
 
 ## Configure
 
-```bash
-cp synergy-mcp-server/inventory.example.yaml synergy-mcp-server/inventory.yaml
-```
-
-Describe your databases in `inventory.yaml` — **facts only, never credentials**:
+The installer creates `synergy-mcp/inventory.yaml` from `synergy-mcp/inventory.example.yaml` if needed. Describe your databases there — **facts only, never credentials**:
 
 ```yaml
 databases:
@@ -76,7 +84,7 @@ ccm start -m -q -nogui -d /opt/ccm/db/core -h buildhost -r developer -n your-nam
 export SYNERGY_PROD_CORE_CCM_ADDR=buildhost:1234:10.0.0.5
 ```
 
-Full setup: [docs/connecting-local-mcp.md](synergy-mcp-server/docs/connecting-local-mcp.md).
+Full setup: [INSTALL.md](INSTALL.md) and [docs/connecting-local-mcp.md](synergy-mcp-server/docs/connecting-local-mcp.md).
 
 ## Use
 
@@ -116,6 +124,7 @@ Start at [docs/README.md](synergy-mcp-server/docs/README.md).
 | [architecture.md](synergy-mcp-server/docs/architecture.md) | Stack, layout, session model, safety invariants |
 | [mcp-capabilities.md](synergy-mcp-server/docs/mcp-capabilities.md) | Every tool, resource and prompt |
 | [ccm-contract.md](synergy-mcp-server/docs/ccm-contract.md) | The safety contract |
+| [INSTALL.md](INSTALL.md) | Install scripts and client target routing |
 | [plan/](synergy-mcp-server/docs/plan/README.md) | Design decisions and rejected alternatives |
 
 ## Compatibility
