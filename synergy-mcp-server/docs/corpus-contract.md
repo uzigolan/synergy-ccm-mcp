@@ -42,7 +42,7 @@ synergy-mcp-server/
     └── synergy-knowledge.sqlite      # FTS5 index, gitignored, rebuildable
 ```
 
-Source PDFs are **not** committed. Extracted markdown is, so that diffs are reviewable and the corpus is reproducible without redistributing licensed documents.
+Source PDFs are **not** committed. Extracted markdown may be committed only when the source license permits redistribution; otherwise it stays as a local harvest under `manuals/` and is rebuilt from the source checklist plus local artefacts.
 
 ## Document schema
 

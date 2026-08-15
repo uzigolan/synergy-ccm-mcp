@@ -45,7 +45,7 @@ The harvest command captures `ccm help` plus all read-only verbs in the policy a
 
 ## Licensed manuals
 
-Product PDFs and offline manuals are IBM-licensed material. Keep source PDFs out of git, extract them locally to markdown or text, then ingest the extracted files. The repository ignores `manuals/**/*.pdf` and `release-notes/**/*.pdf`; extracted markdown is allowed so site-local diffs are reviewable.
+Product PDFs and offline manuals are IBM-licensed material. Keep source PDFs out of git, extract them locally to markdown or text, then ingest the extracted files. Commit extracted markdown only when redistribution rights are clear; otherwise keep it as a local harvest under `synergy-mcp-server/manuals/` and commit the source link, provenance and ingest procedure instead.
 
 ## Ingest commands
 
