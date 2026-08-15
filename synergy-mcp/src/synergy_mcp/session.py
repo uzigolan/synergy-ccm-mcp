@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 from .config import DatabaseConfig, ServerConfig
 from .exec import CcmError, CcmResult, run_ccm
@@ -68,12 +69,17 @@ class SessionManager:
             return _Session(attached, owned=False)
 
         argv: list[str] = ["start", *db.start_flags, "-d", db.database]
-        if db.host:
-            argv += ["-h", db.host]
         if db.server_url:
             argv += ["-s", db.server_url]
         argv += ["-r", db.role, "-n", db.resolve_user(), "-pw", db.resolve_password()]
 
+        log.info(
+            "Starting session for '%s' (this can take minutes on a busy Synergy server; "
+            "timeout=%ss)",
+            db.name,
+            self.config.start_timeout,
+        )
+        started = time.monotonic()
         result = run_ccm(
             self.config.ccm_binary,
             argv,
@@ -86,7 +92,11 @@ class SessionManager:
             match = _ADDR_RE.search(line.strip())
             if match:
                 addr = match.group(0)
-                log.info("Started session for '%s'", db.name)
+                log.info(
+                    "Started session for '%s' in %ss",
+                    db.name,
+                    round(time.monotonic() - started, 1),
+                )
                 return _Session(addr, owned=True)
 
         raise SessionError(
@@ -101,6 +111,8 @@ class SessionManager:
             if session is None:
                 session = self._start(db)
                 self._sessions[db_name] = session
+            else:
+                log.debug("Reusing session for '%s' (owned=%s)", db_name, session.owned)
             return session.addr
 
     def _drop(self, db_name: str) -> None:
@@ -118,6 +130,7 @@ class SessionManager:
         """Run an allowlisted read-only ccm command against a database session."""
         check_readonly(argv)
         self.config.get(db_name)
+        log.debug("run: db=%s argv=%s timeout=%s", db_name, argv, timeout or self.config.command_timeout)
 
         for attempt in (1, 2):
             addr = self.session_addr(db_name)

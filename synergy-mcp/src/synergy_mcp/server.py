@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import json
 import logging
+import os
 import re
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
@@ -27,11 +28,16 @@ from .session import SessionManager
 
 log = logging.getLogger("synergy_mcp")
 
-mcp = FastMCP("synergy-mcp")
+_LOG_LEVEL = os.environ.get("SYNERGY_MCP_LOG_LEVEL", "INFO").upper()
+
+# FastMCP installs its own root handler at this level, so it must agree with ours
+# or our DEBUG records get dropped before reaching stderr.
+mcp = FastMCP("synergy-mcp", log_level=_LOG_LEVEL)
 
 # Object names are interpolated into ccm query expressions, so anything that
 # could break out of a single-quoted literal is rejected up front.
-_OBJECTNAME_RE = re.compile(r"^[A-Za-z0-9_.:~#+\-/\\ ]{1,400}$")
+# '!' and '@' appear in multi-database instance ids such as 'proj:project:IL!1'.
+_OBJECTNAME_RE = re.compile(r"^[A-Za-z0-9_.:~#+!@\-/\\ ]{1,400}$")
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 _REGISTERED_TOOLS = frozenset(
     {
@@ -415,5 +421,11 @@ def check_skill_version(name: str, client_version: str) -> dict:
 
 
 def run() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=_LOG_LEVEL,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+    logging.getLogger("synergy_mcp").setLevel(_LOG_LEVEL)
+    log.info("synergy-mcp starting (log_level=%s)", _LOG_LEVEL)
     mcp.run()

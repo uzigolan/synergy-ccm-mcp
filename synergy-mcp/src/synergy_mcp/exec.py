@@ -7,10 +7,25 @@ building shell strings from them would be a command-injection hole.
 
 from __future__ import annotations
 
+import logging
+import os
 import subprocess
+import time
 from dataclasses import dataclass
 
+log = logging.getLogger("synergy_mcp.exec")
+
 _REDACT_AFTER = {"-pw", "-password"}
+
+# ccm is routinely slow; anything past this is worth an operator-visible warning.
+_SLOW_MS = int(os.environ.get("SYNERGY_MCP_SLOW_MS", "10000"))
+
+# ccm often fails with a bare exit code and no output at all.
+_RC_HINTS = {
+    1: "general failure",
+    4: "object or project not found, or not visible in this session",
+    6: "query syntax error, or an attribute name that does not exist in this database",
+}
 
 
 @dataclass
@@ -33,9 +48,12 @@ class CcmResult:
 class CcmError(RuntimeError):
     def __init__(self, result: CcmResult):
         self.result = result
+        detail = result.stderr.strip() or result.stdout.strip()
+        if not detail:
+            hint = _RC_HINTS.get(result.returncode, "no diagnostic output")
+            detail = f"ccm produced no output ({hint})"
         super().__init__(
-            f"ccm {' '.join(redact(result.argv))} failed (rc={result.returncode}): "
-            f"{result.stderr.strip() or result.stdout.strip()}"
+            f"ccm {' '.join(redact(result.argv))} failed (rc={result.returncode}): {detail}"
         )
 
 
@@ -64,6 +82,11 @@ def run_ccm(
     check: bool = True,
 ) -> CcmResult:
     full = [binary, *argv]
+    safe = " ".join(redact(argv))
+    log.debug(
+        "exec: ccm %s (timeout=%ss, ccm_addr=%s)", safe, timeout, env.get("CCM_ADDR", "<unset>")
+    )
+    started = time.monotonic()
     try:
         proc = subprocess.run(
             full,
@@ -74,15 +97,19 @@ def run_ccm(
             shell=False,
         )
     except FileNotFoundError as exc:
+        log.error("exec: ccm binary %r not found on PATH", binary)
         raise RuntimeError(
             f"ccm binary '{binary}' not found on PATH. Set CCM_HOME/PATH or "
             f"settings.ccm_binary in inventory.yaml."
         ) from exc
     except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        log.warning("exec: ccm %s timed out after %ss (%sms elapsed)", safe, timeout, elapsed_ms)
         raise RuntimeError(
             f"ccm {' '.join(redact(argv))} timed out after {timeout}s."
         ) from exc
 
+    elapsed_ms = int((time.monotonic() - started) * 1000)
     stdout = proc.stdout or ""
     truncated = len(stdout) > max_output_bytes
     if truncated:
@@ -95,6 +122,25 @@ def run_ccm(
         stderr=proc.stderr or "",
         truncated=truncated,
     )
+    log.debug(
+        "exec: ccm %s -> rc=%s in %sms (stdout=%sB, stderr=%sB, truncated=%s)",
+        safe,
+        result.returncode,
+        elapsed_ms,
+        len(result.stdout),
+        len(result.stderr),
+        truncated,
+    )
+    if elapsed_ms >= _SLOW_MS:
+        log.warning(
+            "exec: SLOW ccm %s took %sms (rc=%s, timeout=%ss)", safe, elapsed_ms, result.returncode, timeout
+        )
+    if not result.ok:
+        log.debug(
+            "exec: ccm %s failure output: %s",
+            safe,
+            result.text.strip()[:2000] or f"<none> ({_RC_HINTS.get(result.returncode, 'unknown rc')})",
+        )
     if check and not result.ok:
         raise CcmError(result)
     return result
