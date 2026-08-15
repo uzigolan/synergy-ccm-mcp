@@ -2,7 +2,7 @@
 
 Give an AI agent safe, read-only access to a decade of engineering history locked in **IBM Rational Synergy 7.2**.
 
-**Contents:** [What this is](#what-this-is) · [Why](#why) · [Status](#status) · [Install](#install) · [Configure](#configure) · [Use](#use) · [Safety](#safety) · [Documentation](#documentation) · [Compatibility](#compatibility) · [Contributing](#contributing) · [License](#license)
+**Contents:** [What this is](#what-this-is) · [Why](#why) · [Status](#status) · [Install](#install) · [Configure](#configure) · [Use](#use) · [Knowledge corpus](#knowledge-corpus) · [Safety](#safety) · [Documentation](#documentation) · [Compatibility](#compatibility) · [Contributing](#contributing) · [License](#license)
 
 ## What this is
 
@@ -23,12 +23,12 @@ This toolkit makes it reachable, without letting an agent anywhere near a write 
 
 ## Status
 
-**Phase 1 — read-only.** Actively being built.
+**Phase 1 — read-only.** Actively being built, with local stdio installers for VS Code Copilot and Claude Desktop MCPB.
 
 | Phase | Content | Status |
 |---|---|---|
 | 1 | Read-only: query, object, task, project tool groups | in progress |
-| 2 | Knowledge corpus from harvested `ccm help` + manuals | designed |
+| 2 | Knowledge corpus from harvested `ccm help` + manuals | initial support built |
 | 3 | Task-management writes behind a staged-commit flow | designed |
 | 4 | Checkout/checkin, work areas | not scheduled |
 
@@ -36,12 +36,12 @@ This toolkit makes it reachable, without letting an agent anywhere near a write 
 
 Requires Python ≥ 3.10 and a Synergy 7.2 `ccm` client **on the same host**.
 
-Start with [INSTALL.md](INSTALL.md), then choose the client target:
+Start with [INSTALL.md](INSTALL.md) or [INSTALL.html](INSTALL.html), then choose the client target:
 
 | Target | Guide |
 |---|---|
-| VS Code Copilot local stdio | [INSTALL-vscode-copilot-stdio.md](INSTALL-vscode-copilot-stdio.md) |
-| Claude Desktop MCPB | [INSTALL-claude-desktop-mcpb.md](INSTALL-claude-desktop-mcpb.md) |
+| VS Code Copilot local stdio | [INSTALL-vscode-copilot-stdio.md](INSTALL-vscode-copilot-stdio.md) · [HTML](INSTALL-vscode-copilot-stdio.html) |
+| Claude Desktop MCPB | [INSTALL-claude-desktop-mcpb.md](INSTALL-claude-desktop-mcpb.md) · [HTML](INSTALL-claude-desktop-mcpb.html) |
 
 Prepare the local MCP server from the repo root:
 
@@ -69,10 +69,18 @@ databases:
     groups: [production]
 ```
 
-Then either set one MCP-level identity out-of-band:
+Then either set one MCP-level identity in the environment that launches the MCP server:
+
+```powershell
+$env:SYNERGY_MCP_USER = "your-name"
+$env:SYNERGY_MCP_PASSWORD = "your-password"
+```
+
+Linux bash:
 
 ```bash
-synergy-mcp-set-credentials --user your-name
+export SYNERGY_MCP_USER="your-name"
+export SYNERGY_MCP_PASSWORD="your-password"
 ```
 
 Every client using this MCP server will access Synergy through that same account. Use a read-only Synergy account for the phase 1 `query`, `object`, `task` and `project` tool groups. Per-database `SYNERGY_<DB>_USER` and `SYNERGY_<DB>_PASSWORD` variables are still supported when one database needs a different identity.
@@ -98,6 +106,25 @@ object_content(database="prod-core", object_name="parser.c-7:csrc:1")
 More: [docs/examples.md](synergy-mcp-server/docs/examples.md) · [docs/workflows.md](synergy-mcp-server/docs/workflows.md)
 
 New to Synergy's object model? Start with [docs/CONCEPTS.md](synergy-mcp-server/docs/CONCEPTS.md) — it is not Git, and assuming otherwise produces wrong answers.
+
+## Knowledge corpus
+
+The toolkit can build a local searchable corpus from two kinds of reference material:
+
+- harvested `ccm help` output from the site's own Synergy client
+- locally downloaded or extracted IBM/manual documentation that the site is entitled to use
+
+Build and search the corpus from the repo root:
+
+```powershell
+$env:PYTHONPATH = "synergy-mcp/src"
+py -m synergy_mcp.knowledge_cli harvest-cli --database prod-core --ccm-binary ccm
+py -m synergy_mcp.knowledge_cli ingest-manual path\to\extracted\manuals --doc-id rational-synergy-72 --title "IBM Rational Synergy 7.2 manuals"
+py -m synergy_mcp.knowledge_cli build
+py -m synergy_mcp.knowledge_cli search "ccm query -u"
+```
+
+Source PDFs and vendor manual text are local harvest artefacts by default; the repository records source links and ingest procedure, not redistributed IBM documentation text. See [docs/knowledge-sources.md](synergy-mcp-server/docs/knowledge-sources.md) and [manuals/README.md](synergy-mcp-server/manuals/README.md).
 
 ## Safety
 
@@ -125,6 +152,9 @@ Start at [docs/README.md](synergy-mcp-server/docs/README.md).
 | [mcp-capabilities.md](synergy-mcp-server/docs/mcp-capabilities.md) | Every tool, resource and prompt |
 | [ccm-contract.md](synergy-mcp-server/docs/ccm-contract.md) | The safety contract |
 | [INSTALL.md](INSTALL.md) | Install scripts and client target routing |
+| [INSTALL.html](INSTALL.html) | Browser-friendly install guide with copy buttons |
+| [knowledge-sources.md](synergy-mcp-server/docs/knowledge-sources.md) | IBM Docs links and local corpus ingest sources |
+| [examples.md](synergy-mcp-server/docs/examples.md) | What users can ask from Synergy |
 | [plan/](synergy-mcp-server/docs/plan/README.md) | Design decisions and rejected alternatives |
 
 ## Compatibility
@@ -140,7 +170,7 @@ The stable surface is the query language and the four-part object name. The vola
 
 ## Contributing
 
-Safety-critical paths are enumerated in `synergy_core/safety.py` and require two reviewers plus an eval case. Everything else takes one. See [docs/plan/09-contribution-model.md](synergy-mcp-server/docs/plan/09-contribution-model.md).
+Safety-critical paths are enumerated in [synergy_core/safety.py](synergy-mcp-server/packages/synergy-core/synergy_core/safety.py) and require two reviewers plus an eval case. Everything else takes one. See [docs/plan/09-contribution-model.md](synergy-mcp-server/docs/plan/09-contribution-model.md).
 
 ## License
 
