@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import fnmatch
 import json
 import logging
 import os
@@ -68,6 +69,10 @@ _REGISTERED_TOOLS = frozenset(
         "task_objects_bulk",
         "find_tasks",
         "find_crs",
+        "find_trs",
+        "trs_info",
+        "trs_changes",
+        "summarize_release_changes",
         "cr_info",
         "cr_tasks",
         "find_releases",
@@ -83,6 +88,7 @@ _REGISTERED_TOOLS = frozenset(
 
 # Guards a single bulk call from turning into hundreds of ccm round trips.
 _MAX_BULK_TASKS = 100
+_TRS_RE = re.compile(r"^(?:TRS[- ]?)?(\d{1,12})$", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1)
@@ -165,6 +171,18 @@ def _safe_cvtype(cvtype: str) -> str:
 
 def _date_clause(field: str, value: str, operator: str) -> str:
     return f"{field}{operator}{normalize_time(value)}"
+
+
+def _wildcard_match(value: str, pattern: str) -> bool:
+    return fnmatch.fnmatchcase(str(value).lower(), str(pattern).lower())
+
+
+def _safe_trs(trs: str) -> str:
+    text = str(trs).strip()
+    match = _TRS_RE.match(text)
+    if not match:
+        raise ValueError(f"Invalid TRS {trs!r}. Use a number like '24952' or 'TRS-24952'.")
+    return match.group(1)
 
 
 def _text_tool(database: str, argv: list[str], *, timeout: int | None = None) -> dict:
@@ -543,6 +561,301 @@ def find_crs(
         count_only=count_only,
         output_format=format,
     )
+
+
+def _trs_rows(
+    database: str,
+    expression: str,
+    source: str,
+    confidence: str,
+    limit: int,
+    *,
+    required: bool = False,
+) -> list[dict]:
+    try:
+        result = _run_query(
+            database,
+            expression,
+            [
+                "objectname",
+                "problem_number",
+                "trs",
+                "crstatus",
+                "release",
+                "fixed_in_baseline",
+                "phase_fixed",
+                "resolver",
+                "problem_synopsis",
+            ],
+            limit,
+        )
+    except CcmError:
+        if required:
+            raise
+        return []
+    rows = result.get("rows") or []
+    for row in rows:
+        row["match_source"] = source
+        row["confidence"] = confidence
+    return rows
+
+
+def _task_trs_rows(database: str, trs: str, limit: int) -> tuple[list[dict], list[dict]]:
+    try:
+        task_result = _run_query(
+            database,
+            f"cvtype='task' and task_synopsis match '*TRS*{trs}*'",
+            ["displayname", "objectname", "status", "resolver", "release", "task_synopsis"],
+            limit,
+        )
+    except CcmError:
+        return [], []
+    tasks = task_result.get("rows") or []
+    matches: list[dict] = []
+    seen: set[str] = set()
+    for task in tasks:
+        task_name = task.get("displayname") or task.get("objectname") or ""
+        if not task_name:
+            continue
+        try:
+            info = task_info(database, task_name)
+        except Exception as exc:
+            task["cr_lookup_error"] = str(exc)
+            continue
+        output = info.get("output", "")
+        for cr_number, synopsis in re.findall(r"\b[A-Za-z]+!(\d+):\s*(.+)", output):
+            if cr_number in seen:
+                continue
+            seen.add(cr_number)
+            cr_rows = _trs_rows(
+                database,
+                f"cvtype='problem' and problem_number='{cr_number}'",
+                "task_synopsis",
+                "medium",
+                1,
+            )
+            if cr_rows:
+                cr_rows[0]["matched_task"] = task
+                cr_rows[0]["associated_cr_text"] = synopsis.strip()
+                matches.extend(cr_rows)
+    return matches, tasks
+
+
+def _dedupe_trs_matches(matches: list[dict]) -> list[dict]:
+    priority = {"trs_attribute": 0, "problem_synopsis": 1, "task_synopsis": 2}
+    by_cr: dict[str, dict] = {}
+    for row in matches:
+        key = row.get("problem_number") or row.get("objectname") or json.dumps(row, sort_keys=True)
+        current = by_cr.get(key)
+        if current is None or priority.get(row.get("match_source", ""), 99) < priority.get(
+            current.get("match_source", ""), 99
+        ):
+            by_cr[key] = row
+    return sorted(by_cr.values(), key=lambda item: item.get("problem_number", ""))
+
+
+@mcp.tool()
+def find_trs(
+    database: str,
+    trs: str,
+    include_text_fallback: bool = True,
+    max_rows: int | None = None,
+) -> dict:
+    """Find CRs related to a TRS number using the TRS field, CR text and task text."""
+    number = _safe_trs(trs)
+    limit = min(max_rows or _config().max_rows, _config().max_rows)
+    matches = _trs_rows(
+        database,
+        f"cvtype='problem' and trs='{number}'",
+        "trs_attribute",
+        "exact",
+        limit,
+    )
+    task_candidates: list[dict] = []
+    if include_text_fallback and not matches:
+        remaining = max(limit - len(matches), 1)
+        matches.extend(
+            _trs_rows(
+                database,
+                f"cvtype='problem' and problem_synopsis match '*TRS*{number}*'",
+                "problem_synopsis",
+                "high",
+                remaining,
+            )
+        )
+        task_matches, task_candidates = _task_trs_rows(database, number, remaining)
+        matches.extend(task_matches)
+
+    deduped = _dedupe_trs_matches(matches)[:limit]
+    return {
+        "database": database,
+        "trs": number,
+        "matches": deduped,
+        "match_count": len(deduped),
+        "task_candidates": task_candidates,
+        "warnings": [
+            "Some older CRs store TRS only in synopsis/task text; inspect match_source and confidence."
+        ]
+        if any(row.get("match_source") != "trs_attribute" for row in deduped)
+        else [],
+    }
+
+
+@mcp.tool()
+def trs_info(
+    database: str,
+    trs: str,
+    include_tasks: bool = True,
+    include_objects: bool = False,
+) -> dict:
+    """Show manager-friendly CR/task context for a TRS number."""
+    found = find_trs(database, trs, include_text_fallback=True)
+    details: list[dict] = []
+    for match in found.get("matches", []):
+        cr_number = match.get("problem_number")
+        detail = {"match": match}
+        if cr_number:
+            detail["cr_info"] = cr_info(database, cr_number)
+            if include_tasks:
+                detail["cr_tasks"] = cr_tasks(database, cr_number, include_objects=include_objects)
+        details.append(detail)
+    return {**found, "details": details}
+
+
+@mcp.tool()
+def trs_changes(database: str, trs: str) -> dict:
+    """List changed objects for all tasks associated with a TRS."""
+    info = trs_info(database, trs, include_tasks=True, include_objects=False)
+    tasks: set[str] = set()
+    for detail in info.get("details", []):
+        for task in (detail.get("cr_tasks") or {}).get("tasks", []):
+            if re.search(r"!\d+\b", task):
+                tasks.add(task)
+    if not tasks:
+        return {**info, "objects": None, "object_note": "No associated tasks found."}
+    objects = task_objects_bulk(database, sorted(tasks))
+    return {**info, "objects": objects}
+
+
+def _classify_cr(row: dict) -> str:
+    text = " ".join(
+        str(row.get(field, ""))
+        for field in ("request_type", "problem_synopsis", "trs", "phase_fixed")
+    ).lower()
+    if row.get("trs") and row.get("trs") != "<void>":
+        return "trs_fix"
+    if re.search(r"\btrs\s*[- ]?\d+", text):
+        return "trs_fix"
+    if any(word in text for word in ("enhancement", "feature", "add ", "support", "introduce")):
+        return "enhancement_or_feature"
+    if any(word in text for word in ("fix", "bug", "problem", "failure", "does not", "cannot")):
+        return "fix"
+    return "other"
+
+
+def _summary_rows(database: str, expression: str, source: str, limit: int) -> list[dict]:
+    result = _run_query(database, expression, list(DEFAULT_CR_FIELDS), limit)
+    rows = result.get("rows") or []
+    for row in rows:
+        row["match_source"] = source
+        row["change_type"] = _classify_cr(row)
+    return rows
+
+
+@mcp.tool()
+def summarize_release_changes(
+    database: str,
+    trs_values: list[str] | None = None,
+    release_match: str | None = None,
+    fixed_baseline_match: str | None = None,
+    include_tasks: bool = False,
+    max_rows: int | None = None,
+) -> dict:
+    """Summarize TRS fixes, enhancements and other CRs for a release/baseline slice.
+
+    Use `trs_values` when release notes already identified solved TRSs. Use
+    `release_match` or `fixed_baseline_match` to gather Synergy CRs directly.
+    """
+    if not any((trs_values, release_match, fixed_baseline_match)):
+        raise ValueError("Pass trs_values, release_match or fixed_baseline_match.")
+
+    limit = min(max_rows or _config().max_rows, _config().max_rows)
+    rows: list[dict] = []
+    warnings: list[str] = []
+
+    for value in trs_values or []:
+        found = find_trs(database, value, max_rows=limit)
+        for match in found.get("matches", []):
+            match = dict(match)
+            match["input_trs"] = _safe_trs(value)
+            match["change_type"] = _classify_cr(match)
+            rows.append(match)
+        warnings.extend(found.get("warnings", []))
+
+    if release_match and not trs_values:
+        try:
+            rows.extend(
+                _summary_rows(
+                    database,
+                    f"cvtype='problem' and release match '{_safe_pattern(release_match, 'release_match')}'",
+                    "release_match",
+                    limit,
+                )
+            )
+        except (CcmError, RuntimeError) as exc:
+            warnings.append(f"release_match query failed: {exc}")
+
+    if fixed_baseline_match and not trs_values:
+        try:
+            rows.extend(
+                _summary_rows(
+                    database,
+                    f"cvtype='problem' and fixed_in_baseline match '{_safe_pattern(fixed_baseline_match, 'fixed_baseline_match')}'",
+                    "fixed_baseline_match",
+                    limit,
+                )
+            )
+        except (CcmError, RuntimeError) as exc:
+            warnings.append(f"fixed_baseline_match query failed: {exc}")
+
+    deduped: dict[str, dict] = {}
+    for row in rows:
+        key = row.get("problem_number") or row.get("objectname") or json.dumps(row, sort_keys=True)
+        deduped.setdefault(key, row)
+    final_rows = list(deduped.values())
+    if trs_values and release_match:
+        final_rows = [row for row in final_rows if _wildcard_match(row.get("release", ""), release_match)]
+    if trs_values and fixed_baseline_match:
+        final_rows = [
+            row
+            for row in final_rows
+            if _wildcard_match(row.get("fixed_in_baseline", ""), fixed_baseline_match)
+        ]
+    final_rows = sorted(
+        final_rows, key=lambda row: (row.get("change_type", ""), row.get("problem_number", ""))
+    )
+    buckets = Counter(row.get("change_type", "other") for row in final_rows)
+
+    tasks: dict[str, dict] = {}
+    if include_tasks:
+        for row in final_rows:
+            cr_number = row.get("problem_number")
+            if cr_number:
+                tasks[cr_number] = cr_tasks(database, cr_number)
+
+    return {
+        "database": database,
+        "criteria": {
+            "trs_values": [_safe_trs(value) for value in trs_values or []],
+            "release_match": release_match,
+            "fixed_baseline_match": fixed_baseline_match,
+        },
+        "summary": dict(buckets),
+        "total_crs": len(final_rows),
+        "crs": final_rows,
+        "tasks": tasks,
+        "warnings": sorted(set(warnings)),
+    }
 
 
 def _cr_objectname(database: str, cr: str) -> str:

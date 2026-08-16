@@ -1,7 +1,7 @@
 ---
 name: synergy-core
 description: "Core runtime workflow for the Synergy CCM MCP. Load whenever the user addresses 'synergy'. Use when working with IBM Rational Synergy through this MCP, including safety rules, session opening, routing, read-only boundaries, and common investigation workflows."
-version: 1.1.0
+version: 1.2.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
@@ -13,7 +13,7 @@ requires_tools:
 
 # Synergy Core
 
-> **Skill version:** 1.1.0 · updated 2026-08-16. Adds routing for change requests and reporting.
+> **Skill version:** 1.2.0 · updated 2026-08-16. Adds routing for TRS-first workflows and release/baseline deltas.
 
 **Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Routing table](#routing-table) · [Opening ritual](#opening-ritual) · [Core workflows](#core-workflows) · [Refusal boundary](#refusal-boundary) · [Versions](#versions)
 
@@ -49,6 +49,7 @@ Load exactly one deeper skill when the user intent calls for it.
 | Four-part names, object types, history, attributes, content, diffs, `finduse` | **`synergy-object-model`** |
 | Tasks, releases, baselines, project members, project grouping, release audits | **`synergy-task-project`** |
 | CRs, problems, defects, `crstatus`, severity, who resolves or verifies a CR | **`synergy-change-requests`** |
+| TRS lookup, RN TRS, which CR solved a TRS, what changed for a TRS, release/baseline delta by TRS | **`synergy-trs-workflows`** |
 | Effort analysis, throughput, period comparisons, open vs closed counts, CSV export | **`synergy-reporting`** |
 | `ccm` command syntax, IBM docs, harvested help, exact flag meaning | **`synergy-knowledge-corpus`** |
 | Runtime failures, stale sessions, auth, missing `ccm`, inventory or licence issues | **`synergy-troubleshooting`** |
@@ -92,4 +93,4 @@ Refuse requests to mutate Synergy. State that this MCP is phase-1 read-only and 
 
 | Skill | Version | Applies to |
 |---|---|---|
-| synergy-core | 1.1.0 | Rational Synergy 7.2 / 7.2.1 |
+| synergy-core | 1.2.0 | Rational Synergy 7.2 / 7.2.1 |
