@@ -1,6 +1,6 @@
 ---
 name: synergy-knowledge-corpus
-description: "Knowledge corpus workflow for Synergy. Use when the user asks about exact ccm command syntax, flag meaning, IBM Rational Synergy documentation, harvested ccm help, manual reference, corpus ingestion, or knowledge_search results."
+description: "Knowledge corpus workflow for Synergy. Load whenever the user addresses 'synergy'. Use when the user asks about exact ccm command syntax, flag meaning, IBM Rational Synergy documentation, harvested ccm help, manual reference, corpus ingestion, or knowledge_search results."
 version: 1.0.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]

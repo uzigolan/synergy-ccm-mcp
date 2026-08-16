@@ -6,9 +6,9 @@
 
 This flow configures VS Code GitHub Copilot to start `synergy-mcp` locally over stdio.
 
-It writes `.vscode/mcp.json` in this repository. The command points at the repo-local Python virtual environment under `synergy-mcp/.venv`.
+By default it writes a global user-level MCP config and refreshes Synergy skills into the user Copilot skills folder.
 
-Synergy skills are not installed into VS Code as embedded files. They are served by the MCP server through `synergy://skills` resources.
+This installer is global-only. It does not write workspace MCP config or workspace skills.
 
 ## Before you start
 
@@ -32,6 +32,8 @@ bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh
 
 ## Step 2 — Write VS Code MCP config
 
+Global user-level (default):
+
 Windows PowerShell:
 
 ```powershell
@@ -50,10 +52,12 @@ bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-vscode-copilot-
 2. Open Copilot Chat in Agent mode.
 3. Ask: `List the Synergy databases you can see.`
 4. Ask: `Run health_check for prod-core.`
+5. Type `/synergy-core` and confirm the skill appears.
+6. Ask: `Read synergy://skills/synergy-core`.
 
 ## Generated config
 
-The installer writes this shape to `.vscode/mcp.json`:
+The installer writes this shape to `mcp.json`:
 
 ```json
 {
@@ -71,3 +75,14 @@ The installer writes this shape to `.vscode/mcp.json`:
 ```
 
 On Linux the Python path is `synergy-mcp/.venv/bin/python`.
+
+By default, the JSON is written at:
+
+- Windows: `%APPDATA%\Code\User\mcp.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`
+- macOS: `~/Library/Application Support/Code/User/mcp.json`
+
+The installer also refreshes Synergy skill folders at:
+
+- Windows: `%USERPROFILE%\.copilot\skills\synergy-*`
+- Linux/macOS: `~/.copilot/skills/synergy-*`

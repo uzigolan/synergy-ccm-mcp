@@ -1,23 +1,25 @@
 ---
 name: synergy-task-project
-description: "Task, release, project and baseline workflows for Rational Synergy. Use when the user asks what changed, what is in a release, which files a task touched, project members, baselines, project grouping, or release-readiness audits."
-version: 1.0.0
+description: "Task, release, project and baseline workflows for Rational Synergy. Load whenever the user addresses 'synergy'. Use when the user asks what changed, what is in a release, which files a task touched, project members, baselines, project grouping, or release-readiness audits."
+version: 1.1.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
   - find_tasks
   - task_info
   - task_objects
+  - task_objects_bulk
   - project_members
   - find_baselines
+  - find_releases
   - project_grouping_info
 ---
 
 # Synergy Task And Project Workflows
 
-> **Skill version:** 1.0.0 · updated 2026-08-15. Initial task/project investigation skill.
+> **Skill version:** 1.1.0 · updated 2026-08-16. Adds release rollups, date windows and bulk object lookup.
 
-**Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Tasks](#tasks) · [Projects](#projects) · [Baselines and releases](#baselines-and-releases) · [Audit patterns](#audit-patterns) · [Versions](#versions)
+**Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Tasks](#tasks) · [Release rollups](#release-rollups) · [Projects](#projects) · [Baselines and releases](#baselines-and-releases) · [Audit patterns](#audit-patterns) · [Versions](#versions)
 
 ## Session self-check
 
@@ -30,6 +32,8 @@ Confirm `health_check(database)` has succeeded. If task/project tools are missin
 3. **Compare baselines by task set first.** Do not assume a file-tree diff is the primary Synergy answer.
 4. **Use direct project members first.** Recursive hierarchy queries can be very large.
 5. **Aggregate large audits.** Summarize counts and notable objects before drilling into every task.
+6. **Never loop `task_objects`.** Use `task_objects_bulk` for more than a couple of tasks.
+7. **A feature can be backported.** The release where a task completed is not always where the feature originated — check the whole `release_match` set before concluding.
 
 ## Tasks
 
@@ -45,6 +49,27 @@ Find tasks:
 ```text
 find_tasks(database, owner="uzi", release="product/2.0", status="completed", max_rows=200)
 ```
+
+Objects for many tasks at once, with a file-frequency rollup:
+
+```text
+task_objects_bulk(database, ["IL!257398", "IL!257416", "IL!257418"])
+```
+
+Capped at 100 tasks per call.
+
+## Release rollups
+
+A product line spans many release names. Discover them, then roll up:
+
+```text
+find_releases(database, "etxa")
+find_tasks(database, release_match="etxa*", completed_since="H1 2026",
+           group_by=["release"])
+```
+
+`release='etxa'` matches nothing — partial names always need `release_match`.
+Date windows accept `2/1/2026`, `2026-02-01`, `H1 2026` or `last 6 months`.
 
 ## Projects
 
@@ -83,10 +108,10 @@ Release audit pattern:
 
 ## Audit patterns
 
-For "what has this developer done", query tasks by owner and release, then inspect only the tasks the user asks to drill into. Avoid flooding the context with hundreds of task bodies.
+For "what has this developer done", query tasks by owner and release, then inspect only the tasks the user asks to drill into. Avoid flooding the context with hundreds of task bodies. For counts and period comparisons load **`synergy-reporting`**; for defect-driven questions load **`synergy-change-requests`**.
 
 ## Versions
 
 | Skill | Version | Applies to |
 |---|---|---|
-| synergy-task-project | 1.0.0 | Rational Synergy 7.2 / 7.2.1 |
+| synergy-task-project | 1.1.0 | Rational Synergy 7.2 / 7.2.1 |

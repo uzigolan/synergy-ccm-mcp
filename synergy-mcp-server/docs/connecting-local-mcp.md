@@ -65,7 +65,7 @@ Per-database overrides are still available for exceptional cases: set `SYNERGY_<
 Better than giving the server a password: start the Synergy session yourself and let the server attach to it.
 
 ```bash
-ccm start -m -q -nogui -d /opt/ccm/db/core -h buildhost \
+ccm start -m -q -nogui -d /opt/ccm/db/core \
           -s http://buildhost:8400 -r developer -n uzi -pw -
 # prints e.g. buildhost:1234:10.0.0.5
 

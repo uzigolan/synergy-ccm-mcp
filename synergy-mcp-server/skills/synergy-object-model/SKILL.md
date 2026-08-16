@@ -1,7 +1,7 @@
 ---
 name: synergy-object-model
-description: "Rational Synergy object model guidance. Use when the user asks about four-part object names, object types, file versions, properties, attributes, content, history, diffs, or where an object is used."
-version: 1.0.0
+description: "Rational Synergy object model guidance. Load whenever the user addresses 'synergy'. Use when the user asks about four-part object names, object types, file versions, properties, attributes, content, history, diffs, or where an object is used."
+version: 1.1.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
@@ -12,13 +12,14 @@ requires_tools:
   - object_history
   - object_diff
   - find_use
+  - list_attributes
 ---
 
 # Synergy Object Model
 
-> **Skill version:** 1.0.0 · updated 2026-08-15. Initial object investigation skill.
+> **Skill version:** 1.1.0 · updated 2026-08-16. Adds attribute discovery and the instance-suffix rule.
 
-**Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Four-part names](#four-part-names) · [Object workflows](#object-workflows) · [Interpretation](#interpretation) · [Versions](#versions)
+**Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Four-part names](#four-part-names) · [Attribute discovery](#attribute-discovery) · [Object workflows](#object-workflows) · [Interpretation](#interpretation) · [Versions](#versions)
 
 ## Session self-check
 
@@ -47,6 +48,34 @@ parser.c-7:csrc:1
 ```
 
 The delimiter between name and version is database-configurable. Read it with `ccm delim` before assuming `-`.
+
+### Instance suffix
+
+In a multi-database site the instance carries a database id — `IL!1`, not `1`:
+
+```text
+etx2i_companion~etx2i_companion_1.0.0.0x09_1:project:IL!1
+```
+
+`ccm properties` prints member projects **without** that suffix. Pasting the short form
+into a query returns rc=4 "project does not exist". Resolve the real name first:
+
+```text
+query(db, "cvtype='project' and name='X' and version='Y'", ["objectname"])
+```
+
+## Attribute discovery
+
+Do not guess attribute names — site schemas differ:
+
+```text
+list_attributes(database, "task")
+list_attributes(database, "problem")
+```
+
+It samples one object of that `cvtype` and returns its attribute list. Note that
+`objectname` is a *display* field, not a queryable attribute: filtering on it fails
+with rc=6 and no output.
 
 ## Object workflows
 
@@ -85,4 +114,4 @@ If the user asks who changed a file, do not stop at file history. Read the assoc
 
 | Skill | Version | Applies to |
 |---|---|---|
-| synergy-object-model | 1.0.0 | Rational Synergy 7.2 / 7.2.1 |
+| synergy-object-model | 1.1.0 | Rational Synergy 7.2 / 7.2.1 |

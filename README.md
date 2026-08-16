@@ -88,7 +88,7 @@ Every client using this MCP server will access Synergy through that same account
 …or, preferably, use **attach mode** so the server never handles a password:
 
 ```bash
-ccm start -m -q -nogui -d /opt/ccm/db/core -h buildhost -r developer -n your-name
+ccm start -m -q -nogui -d /opt/ccm/db/core -s http://buildhost:8400 -r developer -n your-name
 export SYNERGY_PROD_CORE_CCM_ADDR=buildhost:1234:10.0.0.5
 ```
 

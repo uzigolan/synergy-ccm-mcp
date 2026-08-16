@@ -7,8 +7,8 @@ settings:
 
 databases:
   - name: prod-core
-    database: /opt/ccm/db/core
-    host: buildhost
-    server_url: http://buildhost:8400
+    database: /ccmdb/prod
+    server_url: http://synergy-host.example.com:8406
     role: developer
-    description: Core product Synergy database
+    user: synergy-user
+    description: Example Synergy CCM database. Set the password with SYNERGY_MCP_PASSWORD.

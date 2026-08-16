@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+from collections import Counter
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -17,11 +18,15 @@ import yaml
 from .config import ServerConfig, load_config
 from .exec import CcmError
 from .formats import (
+    DEFAULT_CR_FIELDS,
     DEFAULT_OBJECT_FIELDS,
     DEFAULT_TASK_FIELDS,
     format_spec,
     is_empty_result,
+    normalize_time,
     parse_rows,
+    parse_task_objects,
+    rows_to_delimited,
 )
 from .knowledge import KnowledgeError, corpus_root, search_knowledge
 from .session import SessionManager
@@ -38,12 +43,16 @@ mcp = FastMCP("synergy-mcp", log_level=_LOG_LEVEL)
 # could break out of a single-quoted literal is rejected up front.
 # '!' and '@' appear in multi-database instance ids such as 'proj:project:IL!1'.
 _OBJECTNAME_RE = re.compile(r"^[A-Za-z0-9_.:~#+!@\-/\\ ]{1,400}$")
+# Same set plus the wildcards ccm's `match` operator understands.
+_PATTERN_RE = re.compile(r"^[A-Za-z0-9_.:~#+!@\-/\\ *?]{1,400}$")
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
+_CVTYPE_RE = re.compile(r"^[a-z_][a-z0-9_]{0,40}$")
 _REGISTERED_TOOLS = frozenset(
     {
         "list_databases",
         "health_check",
         "ccm_version",
+        "show_capabilities",
         "query",
         "object_properties",
         "object_attributes",
@@ -54,7 +63,13 @@ _REGISTERED_TOOLS = frozenset(
         "find_use",
         "task_info",
         "task_objects",
+        "task_objects_bulk",
         "find_tasks",
+        "find_crs",
+        "cr_info",
+        "cr_tasks",
+        "find_releases",
+        "list_attributes",
         "project_members",
         "find_baselines",
         "project_grouping_info",
@@ -63,6 +78,9 @@ _REGISTERED_TOOLS = frozenset(
         "check_skill_version",
     }
 )
+
+# Guards a single bulk call from turning into hundreds of ccm round trips.
+_MAX_BULK_TASKS = 100
 
 
 @lru_cache(maxsize=1)
@@ -85,6 +103,26 @@ def _safe_object(name: str, label: str = "object_name") -> str:
             f"'main.c-3:csrc:1' without quotes or control characters."
         )
     return name
+
+
+def _safe_pattern(pattern: str, label: str = "pattern") -> str:
+    pattern = pattern.strip()
+    if not _PATTERN_RE.match(pattern):
+        raise ValueError(
+            f"Invalid {label} {pattern!r}. Use plain text with '*' or '?' wildcards, e.g. 'etxa*'."
+        )
+    return pattern
+
+
+def _safe_cvtype(cvtype: str) -> str:
+    cvtype = cvtype.strip().lower()
+    if not _CVTYPE_RE.match(cvtype):
+        raise ValueError(f"Invalid cvtype {cvtype!r}. Expected e.g. 'task', 'problem', 'project'.")
+    return cvtype
+
+
+def _date_clause(field: str, value: str, operator: str) -> str:
+    return f"{field}{operator}{normalize_time(value)}"
 
 
 def _text_tool(database: str, argv: list[str], *, timeout: int | None = None) -> dict:
@@ -218,40 +256,84 @@ def ccm_version(database: str) -> dict:
 
 
 @mcp.tool()
+def show_capabilities() -> dict:
+    """Show all available Synergy MCP tools, skills, and capabilities."""
+    return json.loads(_status_resource())
+
+
+def _run_query(
+    database: str,
+    expression: str,
+    fields: list[str] | None = None,
+    max_rows: int | None = None,
+    *,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    output_format: str = "rows",
+) -> dict:
+    cfg = _config()
+    fields = fields or list(DEFAULT_OBJECT_FIELDS)
+    limit = min(max_rows or cfg.max_rows, cfg.max_rows)
+    if offset < 0:
+        raise ValueError("offset must be zero or positive.")
+    if output_format not in ("rows", "csv", "tsv"):
+        raise ValueError(f"Unknown format {output_format!r}. Use 'rows', 'csv' or 'tsv'.")
+
+    argv = ["query", expression, "-u", "-ns", "-f", format_spec(fields)]
+    header = {"database": database, "expression": expression, "fields": fields}
+    try:
+        result = _sessions().run(database, argv)
+    except CcmError as exc:
+        if is_empty_result(exc.result.stdout, exc.result.stderr):
+            empty = (
+                {"grouped_by": group_by, "groups": [], "distinct_groups": 0, "total_matched": 0}
+                if group_by
+                else {"rows": [], "returned": 0, "total_matched": 0, "truncated": False}
+            )
+            return {**header, **empty}
+        raise
+
+    parsed = parse_rows(
+        result.stdout, fields, limit, offset=offset, group_by=group_by, count_only=count_only
+    )
+    if output_format != "rows" and "rows" in parsed:
+        delimiter = "," if output_format == "csv" else "\t"
+        parsed["text"] = rows_to_delimited(parsed["rows"], fields, delimiter)
+        parsed["format"] = output_format
+        del parsed["rows"]
+    return {**header, **parsed}
+
+
+@mcp.tool()
 def query(
     database: str,
     expression: str,
     fields: list[str] | None = None,
     max_rows: int | None = None,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    format: str = "rows",
 ) -> dict:
     """Run a `ccm query` and return structured rows.
 
     `expression` is raw Synergy query syntax, e.g.
     "type='csrc' and status='integrate'" or "is_member_of('proj-1:project:1')".
     `fields` are bare attribute names such as objectname, status, owner, task.
+    Use `count_only` for totals, `group_by` for a per-key rollup (fields must be
+    in `fields`), `offset` to page, and format='csv'|'tsv' for spreadsheet text.
     """
-    cfg = _config()
-    fields = fields or list(DEFAULT_OBJECT_FIELDS)
-    limit = min(max_rows or cfg.max_rows, cfg.max_rows)
-
-    argv = ["query", expression, "-u", "-ns", "-f", format_spec(fields)]
-    try:
-        result = _sessions().run(database, argv)
-    except CcmError as exc:
-        if is_empty_result(exc.result.stdout, exc.result.stderr):
-            return {
-                "database": database,
-                "expression": expression,
-                "fields": fields,
-                "rows": [],
-                "returned": 0,
-                "total_matched": 0,
-                "truncated": False,
-            }
-        raise
-
-    parsed = parse_rows(result.stdout, fields, limit)
-    return {"database": database, "expression": expression, "fields": fields, **parsed}
+    return _run_query(
+        database,
+        expression,
+        fields,
+        max_rows,
+        offset=offset,
+        group_by=group_by,
+        count_only=count_only,
+        output_format=format,
+    )
 
 
 @mcp.tool()
@@ -317,15 +399,234 @@ def find_tasks(
     database: str,
     owner: str | None = None,
     release: str | None = None,
+    release_match: str | None = None,
     status: str | None = None,
+    resolver: str | None = None,
+    completed_since: str | None = None,
+    completed_until: str | None = None,
     max_rows: int | None = None,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    format: str = "rows",
 ) -> dict:
-    """Query tasks by owner, release and/or status."""
+    """Query tasks by owner, resolver, release, status and completion date.
+
+    Use `release_match='etxa*'` to roll up a whole product line, and
+    `completed_since='1/2/2026'` / 'H1 2026' / 'last 6 months' for date windows.
+    """
     clauses = ["cvtype='task'"]
-    for field, value in (("owner", owner), ("release", release), ("status", status)):
+    for field, value in (
+        ("owner", owner),
+        ("release", release),
+        ("status", status),
+        ("resolver", resolver),
+    ):
         if value:
             clauses.append(f"{field}='{_safe_object(value, field)}'")
-    return query(database, " and ".join(clauses), DEFAULT_TASK_FIELDS, max_rows)
+    if release_match:
+        clauses.append(f"release match '{_safe_pattern(release_match, 'release_match')}'")
+    if completed_since:
+        clauses.append(_date_clause("completion_date", completed_since, ">"))
+    if completed_until:
+        clauses.append(_date_clause("completion_date", completed_until, "<"))
+
+    fields = list(DEFAULT_TASK_FIELDS)
+    if completed_since or completed_until or (group_by and "completion_date" in group_by):
+        fields.append("completion_date")
+
+    return _run_query(
+        database,
+        " and ".join(clauses),
+        fields,
+        max_rows,
+        offset=offset,
+        group_by=group_by,
+        count_only=count_only,
+        output_format=format,
+    )
+
+
+@mcp.tool()
+def find_crs(
+    database: str,
+    crstatus: str | None = None,
+    severity: str | None = None,
+    release: str | None = None,
+    release_match: str | None = None,
+    resolver: str | None = None,
+    product_name: str | None = None,
+    entered_since: str | None = None,
+    entered_until: str | None = None,
+    max_rows: int | None = None,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    format: str = "rows",
+) -> dict:
+    """Query change requests (`cvtype='problem'`) by status, severity, release and entry date.
+
+    The CR counterpart of find_tasks. Returns the standard CR field set:
+    problem_number, crstatus, severity, priority, product_name, phase_found,
+    submitter_name, resolver, entry/resolution/conclusion dates and synopsis.
+    """
+    clauses = ["cvtype='problem'"]
+    for field, value in (
+        ("crstatus", crstatus),
+        ("severity", severity),
+        ("release", release),
+        ("resolver", resolver),
+        ("product_name", product_name),
+    ):
+        if value:
+            clauses.append(f"{field}='{_safe_object(value, field)}'")
+    if release_match:
+        clauses.append(f"release match '{_safe_pattern(release_match, 'release_match')}'")
+    if entered_since:
+        clauses.append(_date_clause("entry_date", entered_since, ">"))
+    if entered_until:
+        clauses.append(_date_clause("entry_date", entered_until, "<"))
+
+    return _run_query(
+        database,
+        " and ".join(clauses),
+        list(DEFAULT_CR_FIELDS),
+        max_rows,
+        offset=offset,
+        group_by=group_by,
+        count_only=count_only,
+        output_format=format,
+    )
+
+
+def _cr_objectname(database: str, cr: str) -> str:
+    """Resolve a bare CR number to its problem object name."""
+    cr = cr.strip()
+    if ":problem:" in cr:
+        return _safe_object(cr, "cr")
+    number = cr.lstrip("#").replace("problem", "")
+    if not number.isdigit():
+        raise ValueError(f"Invalid cr {cr!r}. Pass a number like '102454' or a full object name.")
+    found = _run_query(
+        database, f"cvtype='problem' and problem_number='{number}'", ["objectname"], 2
+    )
+    rows = found.get("rows") or []
+    if not rows:
+        raise ValueError(f"No change request found with problem_number '{number}'.")
+    return rows[0]["objectname"]
+
+
+@mcp.tool()
+def cr_info(database: str, cr: str) -> dict:
+    """Show a change request's properties. Accepts a CR number or full problem object name."""
+    objectname = _cr_objectname(database, cr)
+    result = _text_tool(database, ["properties", objectname])
+    return {"cr": objectname, **result}
+
+
+@mcp.tool()
+def cr_tasks(database: str, cr: str, include_objects: bool = False) -> dict:
+    """List the tasks associated with a change request, optionally with their changed objects."""
+    objectname = _cr_objectname(database, cr)
+    result = _text_tool(database, ["properties", objectname])
+    output = result.get("output", "")
+    tasks = sorted(set(re.findall(r"\b[A-Za-z]+![0-9]+\b", output)))
+
+    payload = {"cr": objectname, "tasks": tasks, "task_count": len(tasks), "properties": output}
+    if include_objects and tasks:
+        payload["objects"] = task_objects_bulk(database, tasks)
+    return payload
+
+
+@mcp.tool()
+def task_objects_bulk(database: str, tasks: list[str]) -> dict:
+    """List changed objects for many tasks at once, with a file-frequency rollup.
+
+    Replaces looping `task_objects` per task. Capped at 100 tasks per call so a
+    single request cannot turn into hundreds of ccm round trips.
+    """
+    if not tasks:
+        raise ValueError("No tasks given.")
+    if len(tasks) > _MAX_BULK_TASKS:
+        raise ValueError(
+            f"{len(tasks)} tasks requested; the cap is {_MAX_BULK_TASKS} per call. "
+            f"Narrow the task set or page through it."
+        )
+
+    per_task: list[dict] = []
+    frequency: Counter[str] = Counter()
+    errors: list[dict] = []
+
+    for task in tasks:
+        safe = _safe_object(str(task), "task")
+        try:
+            result = _sessions().run(database, ["task", "-show", "objects", safe])
+        except CcmError as exc:
+            errors.append({"task": safe, "error": str(exc)})
+            continue
+        objects = parse_task_objects(result.text)
+        frequency.update(obj["name"] for obj in objects)
+        per_task.append({"task": safe, "object_count": len(objects), "objects": objects})
+
+    return {
+        "database": database,
+        "tasks_requested": len(tasks),
+        "tasks_read": len(per_task),
+        "distinct_files": len(frequency),
+        "file_frequency": [
+            {"name": name, "tasks": count} for name, count in frequency.most_common()
+        ],
+        "per_task": per_task,
+        "errors": errors,
+    }
+
+
+@mcp.tool()
+def find_releases(database: str, pattern: str | None = None, max_rows: int | None = None) -> dict:
+    """List release definitions, optionally filtered by a name pattern such as 'etx2i'."""
+    expression = "cvtype='releasedef'"
+    if pattern:
+        term = _safe_pattern(pattern, "pattern")
+        if "*" not in term and "?" not in term:
+            term = f"*{term}*"
+        expression += f" and name match '{term}'"
+    return _run_query(
+        database,
+        expression,
+        ["objectname", "name", "version", "status", "owner", "create_time"],
+        max_rows,
+    )
+
+
+@mcp.tool()
+def list_attributes(database: str, cvtype: str) -> dict:
+    """List the attributes available on a given cvtype, sampled from a real object.
+
+    Use this before writing a query instead of guessing field names; `objectname`,
+    for instance, is not a queryable attribute.
+    """
+    kind = _safe_cvtype(cvtype)
+    sample = _run_query(database, f"cvtype='{kind}'", ["objectname"], 1)
+    rows = sample.get("rows") or []
+    if not rows:
+        return {"database": database, "cvtype": kind, "attributes": [], "sample_object": None}
+
+    objectname = rows[0]["objectname"]
+    result = _sessions().run(database, ["attribute", "-la", objectname])
+    attributes = sorted(
+        {
+            line.split()[0]
+            for line in result.text.splitlines()
+            if line.strip() and not line.startswith(" ") and line.split()
+        }
+    )
+    return {
+        "database": database,
+        "cvtype": kind,
+        "sample_object": objectname,
+        "attributes": attributes,
+        "raw": result.text.strip(),
+    }
 
 
 @mcp.tool()
@@ -342,7 +643,7 @@ def project_members(
         if recursive
         else f"is_member_of('{proj}')"
     )
-    return query(database, expression, ["objectname", "status", "owner", "task"], max_rows)
+    return _run_query(database, expression, ["objectname", "status", "owner", "task"], max_rows)
 
 
 @mcp.tool()
@@ -351,7 +652,7 @@ def find_baselines(database: str, release: str | None = None, max_rows: int | No
     expression = "cvtype='baseline'"
     if release:
         expression += f" and release='{_safe_object(release, 'release')}'"
-    return query(
+    return _run_query(
         database,
         expression,
         ["objectname", "status", "release", "owner", "create_time"],
