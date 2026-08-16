@@ -1,6 +1,6 @@
 # MCP Capabilities
 
-**Contents:** [Surfaces](#surfaces) · [Tool groups](#tool-groups) · [session](#group-session) · [query](#group-query) · [object](#group-object) · [task](#group-task) · [project](#group-project) · [introspection](#group-introspection) · [inventory](#group-inventory-write-flag-gated) · [dev](#group-dev-flag-gated) · [Resources](#resources) · [Prompts](#prompts) · [Return shapes](#return-shapes) · [Error style](#error-style)
+**Contents:** [Surfaces](#surfaces) · [User-facing capabilities](#user-facing-capabilities) · [Tool groups](#tool-groups) · [session](#group-session) · [query](#group-query) · [object](#group-object) · [task](#group-task) · [project](#group-project) · [introspection](#group-introspection) · [inventory](#group-inventory-write-flag-gated) · [dev](#group-dev-flag-gated) · [Resources](#resources) · [Prompts](#prompts) · [Return shapes](#return-shapes) · [Error style](#error-style)
 
 ## Surfaces
 
@@ -9,6 +9,28 @@ The server exposes three MCP surfaces:
 - **Tools** — actions the model may call. Registered conditionally per [tool profile](#tool-groups).
 - **Resources** — read-only context the client can pull without spending a tool call.
 - **Prompts** — portable workflow definitions shared with `commands/*.md` so there is one definition and no drift.
+
+## User-facing capabilities
+
+`show_capabilities()` and `synergy://status` return a grouped capability list so users asking "what can you do?" see workflows, not only tool names.
+
+| Capability | What it supports | Main tools | Main skills |
+|---|---|---|---|
+| `session-health` | List databases and verify/read sessions | `list_databases`, `health_check`, `ccm_version` | `synergy-core`, `synergy-troubleshooting` |
+| `query-and-reporting` | Bounded queries, counts, group-by, pagination, CSV/TSV export | `query`, `find_tasks`, `find_crs`, `find_releases`, `list_attributes` | `synergy-query-language`, `synergy-reporting` |
+| `change-requests` | CR/problem lifecycle, resolver/status/release fields, associated tasks | `find_crs`, `cr_info`, `cr_tasks`, `task_objects_bulk` | `synergy-change-requests` |
+| `trs-workflows` | Find CRs by TRS, handle `trs` field vs synopsis/task fallback, summarize release/baseline deltas | `find_trs`, `trs_info`, `trs_changes`, `summarize_release_changes` | `synergy-trs-workflows` |
+| `task-and-project-audit` | Tasks, changed objects, project membership, baselines and release task sets | `task_info`, `task_objects`, `task_objects_bulk`, `project_members`, `find_baselines`, `project_grouping_info` | `synergy-task-project`, `synergy-object-model` |
+| `object-history-and-diff` | Object properties, attributes, content, history, diffs and finduse | `object_properties`, `object_attributes`, `attribute_value`, `object_content`, `object_history`, `object_diff`, `find_use` | `synergy-object-model` |
+| `knowledge-corpus` | Local Synergy CLI/help/manual lookup for exact syntax and docs | `knowledge_search` | `synergy-knowledge-corpus` |
+
+TRS examples:
+
+```text
+find_trs(database, "24952")
+trs_changes(database, "24986")
+summarize_release_changes(database, trs_values=["24952", "24986"], release_match="mp*4*")
+```
 
 ## Tool groups
 

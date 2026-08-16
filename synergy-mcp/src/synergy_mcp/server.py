@@ -255,6 +255,58 @@ def _skill_records() -> list[dict]:
     return skills
 
 
+def _capability_records() -> list[dict]:
+    return [
+        {
+            "name": "session-health",
+            "summary": "List configured databases and verify/read Synergy sessions.",
+            "tools": ["list_databases", "health_check", "ccm_version"],
+            "skills": ["synergy-core", "synergy-troubleshooting"],
+        },
+        {
+            "name": "query-and-reporting",
+            "summary": "Run bounded Synergy queries with pagination, grouping, counts and CSV/TSV export.",
+            "tools": ["query", "find_tasks", "find_crs", "find_releases", "list_attributes"],
+            "skills": ["synergy-query-language", "synergy-reporting"],
+        },
+        {
+            "name": "change-requests",
+            "summary": "Inspect CR/problem records, lifecycle fields, associated tasks and CR-to-code trails.",
+            "tools": ["find_crs", "cr_info", "cr_tasks", "task_objects_bulk"],
+            "skills": ["synergy-change-requests"],
+        },
+        {
+            "name": "trs-workflows",
+            "summary": "Find CRs by TRS, resolve TRS values stored in fields or text, show TRS changes and summarize release/baseline deltas.",
+            "tools": ["find_trs", "trs_info", "trs_changes", "summarize_release_changes"],
+            "skills": ["synergy-trs-workflows"],
+            "examples": [
+                "find_trs(database, '24952')",
+                "trs_changes(database, '24986')",
+                "summarize_release_changes(database, trs_values=['24952', '24986'], release_match='mp*4*')",
+            ],
+        },
+        {
+            "name": "task-and-project-audit",
+            "summary": "Inspect tasks, changed objects, project membership, baselines and release task sets.",
+            "tools": ["task_info", "task_objects", "task_objects_bulk", "project_members", "find_baselines", "project_grouping_info"],
+            "skills": ["synergy-task-project", "synergy-object-model"],
+        },
+        {
+            "name": "object-history-and-diff",
+            "summary": "Read object properties, attributes, content, history, diffs and finduse data.",
+            "tools": ["object_properties", "object_attributes", "attribute_value", "object_content", "object_history", "object_diff", "find_use"],
+            "skills": ["synergy-object-model"],
+        },
+        {
+            "name": "knowledge-corpus",
+            "summary": "Search local Synergy CLI/help/manual knowledge when exact ccm syntax or documentation is needed.",
+            "tools": ["knowledge_search"],
+            "skills": ["synergy-knowledge-corpus"],
+        },
+    ]
+
+
 @mcp.resource("synergy://status", mime_type="application/json")
 def status_resource() -> str:
     """Report server version, read-only posture, registered tools and expected served skills."""
@@ -265,6 +317,7 @@ def status_resource() -> str:
             "read_only": True,
             "skill_delivery": "served",
             "skills": _skill_records(),
+            "capabilities": _capability_records(),
             "tools": sorted(_REGISTERED_TOOLS),
         },
         indent=2,
@@ -318,7 +371,7 @@ def ccm_version(database: str) -> dict:
 @mcp.tool()
 def show_capabilities() -> dict:
     """Show all available Synergy MCP tools, skills, and capabilities."""
-    return json.loads(_status_resource())
+    return json.loads(status_resource())
 
 
 def _run_query(
