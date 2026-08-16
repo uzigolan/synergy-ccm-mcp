@@ -10,6 +10,7 @@ server/.env
 # --- Runtime output --------------------------------------------------------
 logs/
 backups/
+reports/
 *.log
 smoke-*.txt
 
