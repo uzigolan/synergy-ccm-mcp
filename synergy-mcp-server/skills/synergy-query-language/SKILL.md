@@ -1,7 +1,7 @@
 ---
 name: synergy-query-language
 description: "Synergy query grammar and recipes for Rational Synergy 7.2. Load whenever the user addresses 'synergy'. Use when the user asks to find objects, tasks, projects or baselines by criteria, or needs a Synergy query expression written, narrowed or explained."
-version: 1.1.0
+version: 1.2.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
@@ -14,7 +14,7 @@ requires_tools:
 
 # Synergy Query Language
 
-> **Skill version:** 1.1.0 · updated 2026-08-16. Adds dates, wildcards, aggregation and attribute discovery.
+> **Skill version:** 1.2.0 · updated 2026-08-16. Adds case-insensitive attribute handling on top of dates, wildcards, aggregation and discovery.
 
 **Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Core patterns](#core-patterns) · [Dates](#dates) · [Wildcards](#wildcards) · [Aggregation](#aggregation) · [Recipes](#recipes) · [Cost discipline](#cost-discipline) · [Versions](#versions)
 
@@ -31,6 +31,7 @@ Confirm `health_check(database)` has succeeded. If the exposed tool is named `qu
 5. **Count before you list.** For "how many" or "break down by", use `count_only=True` or `group_by=[...]` instead of fetching every row.
 6. **Bound unknown result sets.** Pass `max_rows`; page with `offset`. Default cap is 500.
 7. **Empty rows are a valid answer.** `rows: []` with `total_matched: 0` means no match, not a tool failure.
+8. **Attribute spelling is normalized.** MCP tools normalize attribute names and requested fields to lowercase, so `TRS`, `trs`, `Problem_Number` and `problem_number` address the same Synergy attributes where they exist. Values are preserved, and convenience filters try common value-case variants.
 
 ## Core patterns
 
@@ -39,6 +40,7 @@ Confirm `health_check(database)` has succeeded. If the exposed tool is named `qu
 | Tasks for a release | `cvtype='task' and release='product/2.0'` |
 | Completed release tasks | `cvtype='task' and release='product/2.0' and status='completed'` |
 | Change requests | `cvtype='problem' and crstatus='assigned'` |
+| Change request by TRS | `cvtype='problem' and trs='24452'` |
 | Release definitions | `cvtype='releasedef' and name match '*etx2i*'` |
 | One file's versions | `name='parser.c' and cvtype='csrc'` |
 | User working objects | `owner='uzi' and status='working'` |
@@ -126,4 +128,4 @@ Prefer one structured query with fields over N property lookups. Use recursive p
 
 | Skill | Version | Applies to |
 |---|---|---|
-| synergy-query-language | 1.1.0 | Rational Synergy 7.2 / 7.2.1 |
+| synergy-query-language | 1.2.0 | Rational Synergy 7.2 / 7.2.1 |

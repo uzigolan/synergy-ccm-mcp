@@ -47,6 +47,8 @@ _OBJECTNAME_RE = re.compile(r"^[A-Za-z0-9_.:~#+!@\-/\\ ]{1,400}$")
 _PATTERN_RE = re.compile(r"^[A-Za-z0-9_.:~#+!@\-/\\ *?]{1,400}$")
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 _CVTYPE_RE = re.compile(r"^[a-z_][a-z0-9_]{0,40}$")
+_ATTR_RE = re.compile(r"^_?[A-Za-z][A-Za-z0-9_]{0,80}$")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _REGISTERED_TOOLS = frozenset(
     {
         "list_databases",
@@ -112,6 +114,46 @@ def _safe_pattern(pattern: str, label: str = "pattern") -> str:
             f"Invalid {label} {pattern!r}. Use plain text with '*' or '?' wildcards, e.g. 'etxa*'."
         )
     return pattern
+
+
+def _safe_attr(attr: str, label: str = "field") -> str:
+    attr = attr.strip().lower()
+    if not _ATTR_RE.match(attr):
+        raise ValueError(f"Invalid {label} {attr!r}. Expected a Synergy attribute name.")
+    return attr
+
+
+def _safe_fields(fields: list[str]) -> list[str]:
+    return [_safe_attr(field, "field") for field in fields]
+
+
+def _normalize_query_expression(expression: str) -> str:
+    """Normalize Synergy query identifiers without changing quoted values."""
+    parts = re.split(r"('[^']*')", expression)
+    for index in range(0, len(parts), 2):
+        parts[index] = _IDENT_RE.sub(lambda match: match.group(0).lower(), parts[index])
+    return "".join(parts)
+
+
+def _case_variants(value: str) -> list[str]:
+    variants = [value, value.lower(), value.upper(), value.title()]
+    return list(dict.fromkeys(variants))
+
+
+def _eq_clause(field: str, value: str) -> str:
+    field = _safe_attr(field)
+    variants = [_safe_object(variant, field) for variant in _case_variants(value)]
+    if len(variants) == 1:
+        return f"{field}='{variants[0]}'"
+    return "(" + " or ".join(f"{field}='{variant}'" for variant in variants) + ")"
+
+
+def _match_clause(field: str, pattern: str) -> str:
+    field = _safe_attr(field)
+    variants = [_safe_pattern(variant, field) for variant in _case_variants(pattern)]
+    if len(variants) == 1:
+        return f"{field} match '{variants[0]}'"
+    return "(" + " or ".join(f"{field} match '{variant}'" for variant in variants) + ")"
 
 
 def _safe_cvtype(cvtype: str) -> str:
@@ -273,7 +315,9 @@ def _run_query(
     output_format: str = "rows",
 ) -> dict:
     cfg = _config()
-    fields = fields or list(DEFAULT_OBJECT_FIELDS)
+    expression = _normalize_query_expression(expression)
+    fields = _safe_fields(fields or list(DEFAULT_OBJECT_FIELDS))
+    group_by = _safe_fields(group_by) if group_by else None
     limit = min(max_rows or cfg.max_rows, cfg.max_rows)
     if offset < 0:
         raise ValueError("offset must be zero or positive.")
@@ -423,9 +467,9 @@ def find_tasks(
         ("resolver", resolver),
     ):
         if value:
-            clauses.append(f"{field}='{_safe_object(value, field)}'")
+            clauses.append(_eq_clause(field, value))
     if release_match:
-        clauses.append(f"release match '{_safe_pattern(release_match, 'release_match')}'")
+        clauses.append(_match_clause("release", release_match))
     if completed_since:
         clauses.append(_date_clause("completion_date", completed_since, ">"))
     if completed_until:
@@ -450,6 +494,7 @@ def find_tasks(
 @mcp.tool()
 def find_crs(
     database: str,
+    trs: str | None = None,
     crstatus: str | None = None,
     severity: str | None = None,
     release: str | None = None,
@@ -464,14 +509,15 @@ def find_crs(
     count_only: bool = False,
     format: str = "rows",
 ) -> dict:
-    """Query change requests (`cvtype='problem'`) by status, severity, release and entry date.
+    """Query change requests (`cvtype='problem'`) by TRS, status, severity, release and entry date.
 
     The CR counterpart of find_tasks. Returns the standard CR field set:
-    problem_number, crstatus, severity, priority, product_name, phase_found,
+    problem_number, trs, crstatus, severity, priority, product_name, phase_found,
     submitter_name, resolver, entry/resolution/conclusion dates and synopsis.
     """
     clauses = ["cvtype='problem'"]
     for field, value in (
+        ("trs", trs),
         ("crstatus", crstatus),
         ("severity", severity),
         ("release", release),
@@ -479,9 +525,9 @@ def find_crs(
         ("product_name", product_name),
     ):
         if value:
-            clauses.append(f"{field}='{_safe_object(value, field)}'")
+            clauses.append(_eq_clause(field, value))
     if release_match:
-        clauses.append(f"release match '{_safe_pattern(release_match, 'release_match')}'")
+        clauses.append(_match_clause("release", release_match))
     if entered_since:
         clauses.append(_date_clause("entry_date", entered_since, ">"))
     if entered_until:

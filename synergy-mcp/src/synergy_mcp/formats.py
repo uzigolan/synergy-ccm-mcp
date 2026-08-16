@@ -15,6 +15,7 @@ DEFAULT_OBJECT_FIELDS = ["objectname", "status", "owner", "type", "create_time"]
 DEFAULT_TASK_FIELDS = ["displayname", "task_synopsis", "status", "resolver", "release"]
 DEFAULT_CR_FIELDS = [
     "problem_number",
+    "trs",
     "crstatus",
     "request_type",
     "severity",
