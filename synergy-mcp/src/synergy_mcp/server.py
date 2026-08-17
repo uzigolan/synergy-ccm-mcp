@@ -72,7 +72,11 @@ _REGISTERED_TOOLS = frozenset(
         "find_trs",
         "trs_info",
         "trs_changes",
+        "release_trs_set",
         "summarize_release_changes",
+        "resolve_delivery",
+        "find_folders",
+        "folder_contents",
         "cr_info",
         "cr_tasks",
         "find_releases",
@@ -89,6 +93,13 @@ _REGISTERED_TOOLS = frozenset(
 # Guards a single bulk call from turning into hundreds of ccm round trips.
 _MAX_BULK_TASKS = 100
 _TRS_RE = re.compile(r"^(?:TRS[- ]?)?(\d{1,12})$", re.IGNORECASE)
+# Free-text form: only counts as a TRS when the marker word is present.
+_TRS_TEXT_RE = re.compile(r"\bTRS\s*[-#:]?\s*(\d{3,12})\b", re.IGNORECASE)
+# Delivery labels look like '6.8.72 DTAG D3 (1G Content) 15.08.26'.
+_VERSION_TOKEN_RE = re.compile(r"^\d+(?:\.\d+){1,3}$")
+_DATE_TOKEN_RE = re.compile(r"^\d{1,4}[./-]\d{1,2}[./-]\d{1,4}$")
+_WORD_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9.]*")
+_DELIVERY_CVTYPES = ("folder", "releasedef", "baseline", "project")
 
 
 @lru_cache(maxsize=1)
@@ -277,13 +288,31 @@ def _capability_records() -> list[dict]:
         },
         {
             "name": "trs-workflows",
-            "summary": "Find CRs by TRS, resolve TRS values stored in fields or text, show TRS changes and summarize release/baseline deltas.",
-            "tools": ["find_trs", "trs_info", "trs_changes", "summarize_release_changes"],
+            "summary": "Find CRs by TRS, resolve TRS values stored in fields or text, extract a release's whole TRS set, and summarize release/baseline deltas.",
+            "tools": [
+                "find_trs",
+                "trs_info",
+                "trs_changes",
+                "release_trs_set",
+                "summarize_release_changes",
+            ],
             "skills": ["synergy-trs-workflows"],
             "examples": [
                 "find_trs(database, '24952')",
                 "trs_changes(database, '24986')",
+                "release_trs_set(database, release='etxa/6.8.72', crstatus='concluded')",
                 "summarize_release_changes(database, trs_values=['24952', '24986'], release_match='mp*4*')",
+            ],
+        },
+        {
+            "name": "delivery-packages",
+            "summary": "Resolve human delivery/package labels (with dates and parentheses) to real Synergy folders, releases, baselines or projects.",
+            "tools": ["resolve_delivery", "find_folders", "folder_contents", "find_baselines"],
+            "skills": ["synergy-trs-workflows", "synergy-task-project"],
+            "examples": [
+                "resolve_delivery(database, '6.8.72 DTAG D3 (1G Content) 15.08.26')",
+                "find_folders(database, name_match='*DTAG*')",
+                "folder_contents(database, '<folder objectname>')",
             ],
         },
         {
@@ -400,12 +429,26 @@ def _run_query(
     try:
         result = _sessions().run(database, argv)
     except CcmError as exc:
-        if is_empty_result(exc.result.stdout, exc.result.stderr):
+        # ccm returns rc=6 with no output for BOTH a zero-match query and an unknown
+        # attribute, so treat it as empty and flag the ambiguity rather than failing.
+        ambiguous = (
+            exc.result.returncode == 6
+            and not exc.result.stdout.strip()
+            and not exc.result.stderr.strip()
+        )
+        if is_empty_result(exc.result.stdout, exc.result.stderr) or ambiguous:
             empty = (
                 {"grouped_by": group_by, "groups": [], "distinct_groups": 0, "total_matched": 0}
                 if group_by
                 else {"rows": [], "returned": 0, "total_matched": 0, "truncated": False}
             )
+            if ambiguous:
+                empty["empty_or_invalid_attribute"] = True
+                empty["warnings"] = [
+                    "ccm returned rc=6 with no output. This means either zero matches or an "
+                    "attribute that does not exist in this database. Confirm the field names "
+                    "with list_attributes before reporting 'no results'."
+                ]
             return {**header, **empty}
         raise
 
@@ -909,6 +952,282 @@ def summarize_release_changes(
         "tasks": tasks,
         "warnings": sorted(set(warnings)),
     }
+
+
+def _extract_trs_from_text(text: str) -> list[str]:
+    """Pull TRS numbers out of free text, requiring the 'TRS' marker."""
+    return [match.group(1) for match in _TRS_TEXT_RE.finditer(str(text or ""))]
+
+
+@mcp.tool()
+def release_trs_set(
+    database: str,
+    release: str | None = None,
+    release_match: str | None = None,
+    crstatus: str | None = "concluded",
+    include_tasks: bool = True,
+    max_rows: int | None = None,
+) -> dict:
+    """Collect every TRS number for a release, from the `trs` field and from CR/task text.
+
+    Returns a flat `trs_list` so callers never have to regex the rows themselves.
+    Each entry in `trs_sources` records where that TRS was seen, because older
+    records carry the number only in a synopsis.
+    """
+    if not (release or release_match):
+        raise ValueError("Pass release or release_match.")
+
+    limit = min(max_rows or _config().max_rows, _config().max_rows)
+    clauses = ["cvtype='problem'"]
+    if release:
+        clauses.append(_eq_clause("release", release))
+    if release_match:
+        clauses.append(_match_clause("release", release_match))
+    if crstatus:
+        clauses.append(_eq_clause("crstatus", crstatus))
+
+    warnings: list[str] = []
+    sources: dict[str, set[str]] = {}
+    evidence: dict[str, dict] = {}
+
+    def _record(number: str, source: str, row: dict) -> None:
+        sources.setdefault(number, set()).add(source)
+        evidence.setdefault(number, {"trs": number, "crs": [], "tasks": []})
+        holder = evidence[number]
+        if source == "task_synopsis":
+            entry = {"task": row.get("displayname"), "synopsis": row.get("task_synopsis")}
+            if entry not in holder["tasks"]:
+                holder["tasks"].append(entry)
+        else:
+            entry = {
+                "problem_number": row.get("problem_number"),
+                "crstatus": row.get("crstatus"),
+                "release": row.get("release"),
+                "fixed_in_baseline": row.get("fixed_in_baseline"),
+                "synopsis": row.get("problem_synopsis"),
+            }
+            if entry not in holder["crs"]:
+                holder["crs"].append(entry)
+
+    cr_rows: list[dict] = []
+    try:
+        cr_result = _run_query(database, " and ".join(clauses), list(DEFAULT_CR_FIELDS), limit)
+        cr_rows = cr_result.get("rows") or []
+        if cr_result.get("truncated"):
+            warnings.append(
+                f"CR rows truncated at {limit}; total_matched={cr_result.get('total_matched')}. "
+                f"Raise max_rows for a complete set."
+            )
+    except (CcmError, RuntimeError) as exc:
+        warnings.append(f"CR query failed: {exc}")
+
+    for row in cr_rows:
+        field_value = str(row.get("trs") or "").strip()
+        if field_value and field_value != "<void>" and field_value.isdigit():
+            _record(field_value, "trs_attribute", row)
+        for number in _extract_trs_from_text(row.get("problem_synopsis")):
+            _record(number, "problem_synopsis", row)
+
+    task_rows: list[dict] = []
+    if include_tasks:
+        task_clauses = ["cvtype='task'"]
+        if release:
+            task_clauses.append(_eq_clause("release", release))
+        if release_match:
+            task_clauses.append(_match_clause("release", release_match))
+        try:
+            task_result = _run_query(
+                database, " and ".join(task_clauses), list(DEFAULT_TASK_FIELDS), limit
+            )
+            task_rows = task_result.get("rows") or []
+            if task_result.get("truncated"):
+                warnings.append(
+                    f"Task rows truncated at {limit}; total_matched={task_result.get('total_matched')}."
+                )
+        except (CcmError, RuntimeError) as exc:
+            warnings.append(f"Task query failed: {exc}")
+
+        for row in task_rows:
+            for number in _extract_trs_from_text(row.get("task_synopsis")):
+                _record(number, "task_synopsis", row)
+
+    trs_list = sorted(sources, key=lambda value: (len(value), value))
+    by_source: Counter[str] = Counter()
+    for names in sources.values():
+        for name in names:
+            by_source[name] += 1
+
+    return {
+        "database": database,
+        "criteria": {"release": release, "release_match": release_match, "crstatus": crstatus},
+        "trs_list": trs_list,
+        "trs_count": len(trs_list),
+        "by_source": dict(by_source),
+        "trs_sources": {number: sorted(names) for number, names in sorted(sources.items())},
+        "evidence": [evidence[number] for number in trs_list],
+        "cr_rows_scanned": len(cr_rows),
+        "task_rows_scanned": len(task_rows),
+        "warnings": warnings,
+    }
+
+
+def _looks_like_date(token: str) -> bool:
+    """Tell '15.08.26' (a date) from '6.8.72' (a version) by zero-padded parts."""
+    parts = token.split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        return False
+    day, month, _ = parts
+    return len(month) == 2 and month.startswith("0") and len(day) == 2 and int(month) <= 12
+
+
+def _delivery_tokens(label: str) -> dict[str, list[str]]:
+    """Split a human delivery label into searchable tokens."""
+    versions: list[str] = []
+    dates: list[str] = []
+    words: list[str] = []
+    for raw in _WORD_TOKEN_RE.findall(label):
+        token = raw.strip(".")
+        if not token:
+            continue
+        if _looks_like_date(token):
+            dates.append(token)
+        elif _VERSION_TOKEN_RE.match(token):
+            versions.append(token)
+        elif _DATE_TOKEN_RE.match(token):
+            dates.append(token)
+        elif len(token) > 1 or token.isdigit():
+            words.append(token)
+    for raw in re.findall(r"\d{1,4}[./-]\d{1,2}[./-]\d{1,4}", label):
+        if raw not in dates and raw not in versions:
+            dates.append(raw)
+    return {"versions": versions, "dates": dates, "words": words}
+
+
+def _candidate_rows(database: str, cvtype: str, pattern: str, limit: int) -> list[dict]:
+    """Query one cvtype by name pattern, degrading gracefully on schema differences."""
+    for fields in (
+        ["objectname", "name", "version", "status", "owner"],
+        ["objectname", "name", "status", "owner"],
+        ["objectname", "name"],
+    ):
+        try:
+            result = _run_query(
+                database,
+                f"cvtype='{_safe_cvtype(cvtype)}' and name match '{_safe_pattern(pattern)}'",
+                fields,
+                limit,
+            )
+            rows = result.get("rows") or []
+            for row in rows:
+                row["cvtype"] = cvtype
+            return rows
+        except (CcmError, RuntimeError):
+            continue
+    return []
+
+
+@mcp.tool()
+def resolve_delivery(
+    database: str,
+    label: str,
+    cvtypes: list[str] | None = None,
+    max_rows: int | None = None,
+) -> dict:
+    """Resolve a human delivery/package label to real Synergy objects.
+
+    Accepts labels such as '6.8.72 DTAG D3 (1G Content) 15.08.26' that are not
+    valid object names. Searches folders, release definitions, baselines and
+    projects, then ranks candidates by how many label tokens they match.
+    `unmatched_tokens` states what could NOT be resolved, so a partially
+    resolved label is never silently reported as an exact hit.
+    """
+    if not label.strip():
+        raise ValueError("label must not be empty.")
+
+    limit = min(max_rows or 200, _config().max_rows)
+    kinds = [_safe_cvtype(kind) for kind in (cvtypes or list(_DELIVERY_CVTYPES))]
+    tokens = _delivery_tokens(label)
+    search_terms = tokens["versions"] or tokens["words"][:1]
+    if not search_terms:
+        raise ValueError(f"No searchable tokens in label {label!r}.")
+
+    seen: dict[str, dict] = {}
+    for kind in kinds:
+        for term in search_terms:
+            for row in _candidate_rows(database, kind, f"*{term}*", limit):
+                key = row.get("objectname") or json.dumps(row, sort_keys=True)
+                seen.setdefault(key, row)
+
+    all_tokens = tokens["versions"] + tokens["words"] + tokens["dates"]
+    candidates: list[dict] = []
+    for row in seen.values():
+        haystack = f"{row.get('name', '')} {row.get('objectname', '')} {row.get('version', '')}".lower()
+        matched = [token for token in all_tokens if token.lower() in haystack]
+        if not matched:
+            continue
+        row = dict(row)
+        row["matched_tokens"] = matched
+        row["match_score"] = len(matched)
+        row["confidence"] = (
+            "high" if len(matched) >= max(3, len(all_tokens) - 1)
+            else "medium" if len(matched) >= 2
+            else "low"
+        )
+        candidates.append(row)
+
+    candidates.sort(key=lambda item: (-item["match_score"], str(item.get("name", ""))))
+    top = candidates[:limit]
+    matched_any = {token for row in top for token in row["matched_tokens"]}
+    unmatched = [token for token in all_tokens if token not in matched_any]
+
+    return {
+        "database": database,
+        "label": label,
+        "tokens": tokens,
+        "searched_cvtypes": kinds,
+        "candidates": top,
+        "candidate_count": len(top),
+        "unmatched_tokens": unmatched,
+        "resolved": bool(top) and not unmatched,
+        "warnings": [
+            f"Label tokens not found in any candidate: {', '.join(unmatched)}. "
+            f"Treat the label as only partially resolved and say so in the answer."
+        ]
+        if unmatched
+        else [],
+    }
+
+
+@mcp.tool()
+def find_folders(database: str, name_match: str | None = None, max_rows: int | None = None) -> dict:
+    """List Synergy folders, optionally filtered by a name pattern.
+
+    Delivery/package groupings are often folders rather than projects, so check
+    here before concluding a package label does not exist.
+    """
+    limit = min(max_rows or 200, _config().max_rows)
+    pattern = name_match or "*"
+    if "*" not in pattern and "?" not in pattern:
+        pattern = f"*{pattern}*"
+    rows = _candidate_rows(database, "folder", pattern, limit)
+    return {
+        "database": database,
+        "name_match": pattern,
+        "folders": rows,
+        "folder_count": len(rows),
+    }
+
+
+@mcp.tool()
+def folder_contents(database: str, folder: str, show: str = "tasks") -> dict:
+    """Show the contents of a folder (`ccm folder -show tasks|objects`)."""
+    if show not in ("tasks", "objects"):
+        raise ValueError(f"Unknown show {show!r}. Use 'tasks' or 'objects'.")
+    spec = _safe_object(folder, "folder")
+    result = _text_tool(database, ["folder", "-show", show, spec])
+    output = result.get("output", "")
+    tasks = sorted(set(re.findall(r"\b[A-Za-z]+![0-9]+\b", output))) if show == "tasks" else []
+    return {"folder": spec, "show": show, "tasks": tasks, "task_count": len(tasks), **result}
 
 
 def _cr_objectname(database: str, cr: str) -> str:

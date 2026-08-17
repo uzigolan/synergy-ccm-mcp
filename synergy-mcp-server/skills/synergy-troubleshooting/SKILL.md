@@ -1,7 +1,7 @@
 ---
 name: synergy-troubleshooting
 description: "Runtime troubleshooting for the Synergy CCM MCP. Load whenever the user addresses 'synergy'. Use when sessions fail, ccm is missing, inventory is wrong, credentials are missing, CCM_ADDR is stale, license seats are exhausted, queries time out, or tool output is empty or refused."
-version: 1.1.0
+version: 1.2.0
 families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
@@ -13,7 +13,7 @@ requires_tools:
 
 # Synergy Troubleshooting
 
-> **Skill version:** 1.1.0 · updated 2026-08-16. Adds ccm exit codes and the object-name instance trap.
+> **Skill version:** 1.2.0 · updated 2026-08-17. Corrects the rc=6 exit code: it is ambiguous, not proof of a bad attribute.
 
 **Contents:** [Session self-check](#session-self-check) · [Golden rules](#golden-rules) · [Triage](#triage) · [Exit codes](#exit-codes) · [Object names](#object-names) · [Common failures](#common-failures) · [What not to do](#what-not-to-do) · [Versions](#versions)
 
@@ -45,10 +45,20 @@ substitutes a hint, but know what they mean:
 |---|---|---|
 | 1 | general failure | read the message; usually argument shape |
 | 4 | object or project not found, or not visible in this session | check the object name, including its instance suffix |
-| 6 | query syntax error, or an attribute that does not exist | run `list_attributes(database, cvtype)`; do not filter on `objectname` |
+| 6 | **ambiguous**: zero matches OR an attribute that does not exist | see below — do not assume either one |
 
-A silent rc=6 almost always means a bad attribute name. Fix the field, do not retry
-the same expression.
+`rc=6` with no output on either stream is genuinely ambiguous. Verified on a live
+database, these two produce byte-identical results (`rc=6`, 0B stdout, 0B stderr):
+
+```text
+cvtype='problem' and problem_synopsis match '*zzqqxxnotfound*'   zero matches
+cvtype='problem' and bogus_attr_xyz='1'                          bad attribute
+```
+
+The server therefore returns an empty result carrying `empty_or_invalid_attribute:
+true` instead of raising. When you see that flag, confirm the field names with
+`list_attributes` before reporting "no results" — and never abandon an otherwise
+valid query shape just because it came back empty.
 
 ## Object names
 
@@ -78,7 +88,7 @@ query(db, "cvtype='project' and name='X' and version='Y'", ["objectname"])
 | Stale session | `CCM_ADDR` points to a dead Synergy session | Clear the env var or start a fresh `ccm` session |
 | Licence exhausted | Too many sessions | Use attach mode or reduce concurrent databases |
 | Empty query | No matching objects or wrong type/status assumption | Query by `name` first and inspect actual fields |
-| Silent `rc=6` | Invalid attribute in the expression | `list_attributes(database, cvtype)`; `objectname` is not queryable |
+| Silent `rc=6` | Zero matches **or** an invalid attribute | Check `empty_or_invalid_attribute`; confirm fields with `list_attributes` |
 | `rc=4` project not found | Missing `IL!n` instance suffix | Resolve the object name via a `cvtype='project'` query |
 | Query timeout | Broad query or recursive hierarchy | Add filters, fields and `max_rows`; avoid recursive first |
 | Result truncated | More rows than `max_rows` | Page with `offset`, or switch to `count_only` / `group_by` |
@@ -103,4 +113,4 @@ across calls — a slow first call is normal, a slow tenth call is not.
 
 | Skill | Version | Applies to |
 |---|---|---|
-| synergy-troubleshooting | 1.1.0 | Rational Synergy 7.2 / 7.2.1 |
+| synergy-troubleshooting | 1.2.0 | Rational Synergy 7.2 / 7.2.1 |
