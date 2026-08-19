@@ -78,9 +78,7 @@ Linux/macOS bash:
 bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh
 ```
 
-The installer writes a local stdio MCP server entry to Claude Desktop's `claude_desktop_config.json`.
-Before modifying the file, it saves a timestamped backup next to it and prints the exact MCP server entry it is adding.
-It also builds a Claude plugin containing all `synergy-*` skills and opens the plugin dist directory:
+The installer builds a Claude plugin containing the local stdio MCP connector and all `synergy-*` skills. It does not modify Claude Desktop config files directly. It opens the plugin dist directory:
 
 - Plugin folder: `synergy-mcp-server/dist/plugin/synergy-ccm-mcp`
 - Upload zip: `synergy-mcp-server/dist/plugin/synergy-ccm-mcp-plugin.zip`
@@ -99,9 +97,9 @@ Then ask a bounded read-only question:
 Find CRs changed today, max 20 rows.
 ```
 
-## Generated config and plugin
+## Generated plugin
 
-The installer writes this shape under `mcpServers` in Claude Desktop's config file:
+The plugin contains this `.mcp.json` connector:
 
 ```json
 {

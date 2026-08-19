@@ -74,9 +74,7 @@ git pull</code></pre>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-stdio.ps1</code></pre>
 <p>Linux/macOS bash:</p>
 <pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh</code></pre>
-<p>The installer writes a local stdio MCP server entry to Claude Desktop's <code>claude_desktop_config.json</code>.</p>
-<p>Before modifying the file, it saves a timestamped backup next to it and prints the exact MCP server entry it is adding.</p>
-<p>It also builds a Claude plugin containing all <code>synergy-*</code> skills and opens the plugin dist directory:</p>
+<p>The installer builds a Claude plugin containing the local stdio MCP connector and all <code>synergy-*</code> skills. It does not modify Claude Desktop config files directly. It opens the plugin dist directory:</p>
 <ul>
   <li>Plugin folder: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp</code></li>
   <li>Upload zip: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp-plugin.zip</code></li>
@@ -88,8 +86,8 @@ git pull</code></pre>
 <p>Then ask a bounded read-only question:</p>
 <pre><code>Find CRs changed today, max 20 rows.</code></pre>
 
-<h2>Generated config and plugin</h2>
-<p>The installer writes this shape under <code>mcpServers</code> in Claude Desktop's config file:</p>
+<h2>Generated plugin</h2>
+<p>The plugin contains this <code>.mcp.json</code> connector:</p>
 <pre><code>{
   "mcpServers": {
     "synergy-ccm-mcp": {

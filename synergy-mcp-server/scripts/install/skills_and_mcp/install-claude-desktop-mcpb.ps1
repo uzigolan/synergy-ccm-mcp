@@ -5,14 +5,6 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
 $ServerInstaller = Join-Path $RepoRoot "synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1"
-$ClaudeConfig = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
-$ClaudeConfigDir = Split-Path -Parent $ClaudeConfig
-New-Item -ItemType Directory -Force -Path $ClaudeConfigDir | Out-Null
-if (Test-Path $ClaudeConfig) {
-    $BackupFile = "$ClaudeConfig.$(Get-Date -Format 'yyyyMMdd-HHmmss').bak"
-    Copy-Item -Force $ClaudeConfig $BackupFile
-    Write-Host "Backup saved: $BackupFile"
-}
 
 & $ServerInstaller
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

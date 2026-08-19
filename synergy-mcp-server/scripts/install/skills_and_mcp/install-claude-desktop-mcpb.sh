@@ -13,19 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 SERVER_INSTALLER="$REPO_ROOT/synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh"
 
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  CLAUDE_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-else
-  CLAUDE_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/Claude/claude_desktop_config.json"
-fi
-CLAUDE_DIR="$(dirname "$CLAUDE_CONFIG")"
-mkdir -p "$CLAUDE_DIR"
-if [[ -f "$CLAUDE_CONFIG" ]]; then
-  BACKUP_FILE="$CLAUDE_CONFIG.$(date +%Y%m%d-%H%M%S).bak"
-  cp "$CLAUDE_CONFIG" "$BACKUP_FILE"
-  echo "Backup saved: $BACKUP_FILE"
-fi
-
 bash "$SERVER_INSTALLER"
 
 VENV_PYTHON="$REPO_ROOT/synergy-mcp/.venv/bin/python"
