@@ -1,63 +1,156 @@
 # Installing for VS Code Copilot — Local STDIO
 
-**Contents:** [What this installs](#what-this-installs) · [Before you start](#before-you-start) · [Step 1 — Prepare the server](#step-1--prepare-the-server) · [Step 2 — Write VS Code MCP config](#step-2--write-vs-code-mcp-config) · [Step 3 — Reload and verify](#step-3--reload-and-verify) · [Generated config](#generated-config)
+**Contents:** [Installation Kind](#installation-kind) · [Before you start](#before-you-start) · [Step 1 — Environment](#step-1--prepare-your-environment) · [Step 2 — Setup](#step-2--setup) · [Step 3 — Install](#step-3--install-mcp-stdio) · [Step 4 — Verify](#step-4--reload-and-verify) · [Generated config](#generated-config)
 
-## What this installs
+## Installation Kind
 
-This flow configures VS Code GitHub Copilot to start `synergy-mcp` locally over stdio.
-
-By default it writes a global user-level MCP config and refreshes Synergy skills into the user Copilot skills folder.
-
-This installer is global-only. It does not write workspace MCP config or workspace skills.
+**Local STDIO** (default):
+- Client starts synergy-mcp server via stdio.
+- Local Python 3.10+ and dependencies are required on the client machine.
+- Synergy CCM client must be installed and configured on this machine.
+- You control when to make database queries and interact with the Synergy system.
+- Full MCP toolset is available locally.
 
 ## Before you start
 
+- Run commands from the repository root.
 - Install VS Code and the official GitHub Copilot extension.
-- Install the Synergy `ccm` client on this machine.
-- Run all commands from the repo root, `rad-synergy-toolkit/`.
+- Install the Synergy CCM client on this machine and ensure it is configured.
+- Use this flow for local stdio transport (default).
 
-## Step 1 — Prepare the server
+## Step 1 — Prepare Your Environment
 
-Windows PowerShell:
+Choose your platform:
 
-```powershell
-PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1
-```
+#### VS Code on Windows
+- Download and install VS Code: https://code.visualstudio.com/download
+- Download and install Git: https://git-scm.com/install/windows
+- Install the official GitHub Copilot extension: https://marketplace.visualstudio.com/items?itemName=GitHub.copilot
+- Install Synergy CCM client and ensure it is accessible.
 
-Linux bash:
+#### VS Code on Linux / macOS
+- Download and install VS Code: https://code.visualstudio.com/download
+- Download and install Git: https://git-scm.com/download/linux (Linux) or https://git-scm.com/download/mac (macOS)
+- Install the official GitHub Copilot extension: https://marketplace.visualstudio.com/items?itemName=GitHub.copilot
+- Install Synergy CCM client and ensure it is accessible.
+
+## Step 2 — Setup
+
+### New
 
 ```bash
-bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh
+git clone git://172.18.178.24/rad-synergy synergy-ccm-mcp
+cd synergy-ccm-mcp
 ```
 
-## Step 2 — Write VS Code MCP config
+### Update
 
-Global user-level (default):
+```bash
+cd synergy-ccm-mcp
+git pull
+```
 
-Windows PowerShell:
+## Step 2a — Configure Your Synergy CCM Credentials (Optional)
+
+The synergy-mcp MCP server needs your credentials to access the Synergy CCM database. Use the automated credential configuration script (run from repo root):
+
+**Windows (PowerShell):**
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\configure-synergy-credentials.ps1
+```
+
+**Linux/macOS (bash):**
+
+```bash
+bash ./synergy-mcp-server/scripts/install/skills_and_mcp/configure-synergy-credentials.sh
+```
+
+**Manual Setup (if preferred):**
+
+If you prefer to configure credentials manually, see the [manual setup section](#manual-credential-setup) below.
+
+### What the script does:
+
+1. Prompts for your Synergy CCM username
+2. Prompts for your Synergy CCM password (secure input)
+3. Stores the encrypted password securely:
+   - **Windows**: `%APPDATA%\synergy-mcp\ccm_password.txt`
+   - **Linux**: System keychain or encrypted file
+   - **macOS**: System Keychain
+4. Sets environment variables: `CCM_USER`, `CCM_ADDR`, `CCM_CRED_FILE`
+
+---
+
+### Manual Credential Setup
+
+**Windows (Credential Manager):**
+
+```powershell
+# Create the directory if it doesn't exist
+$CredDir = "$env:APPDATA\synergy-mcp"
+New-Item -ItemType Directory -Force -Path $CredDir | Out-Null
+
+# Store YOUR password securely (replace with your actual username)
+$username = "your-synergy-username"
+$cred = Get-Credential -UserName $username -Message "Enter your Synergy CCM password"
+$cred.Password | ConvertFrom-SecureString | Set-Content "$CredDir\ccm_password.txt"
+
+# Set your environment variables
+[Environment]::SetEnvironmentVariable("CCM_USER", "$username", "User")
+[Environment]::SetEnvironmentVariable("CCM_ADDR", "your-ccm-server:5580", "User")
+```
+
+**Linux/macOS (System Keychain):**
+
+```bash
+# Store YOUR password in system keychain (replace with your actual username)
+YOUR_USERNAME="your-synergy-username"
+read -sp "Enter your Synergy CCM password: " CCM_PASSWORD
+echo "$CCM_PASSWORD" | pass insert synergy-ccm/password
+
+# Set your environment variables
+echo "export CCM_USER=\"$YOUR_USERNAME\"" >> ~/.bashrc
+echo 'export CCM_ADDR="your-ccm-server:5580"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+## Step 4 — Install MCP STDIO
+
+Prepare the synergy-mcp server once per machine. This creates the repo-local Python environment under `synergy-mcp/.venv` and installs the internal packages.
+
+**Windows (PowerShell):**
 
 ```powershell
 PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-vscode-copilot-stdio.ps1
 ```
 
-Linux bash:
+**Linux / macOS (bash):**
 
 ```bash
 bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-vscode-copilot-stdio.sh
 ```
 
-## Step 3 — Reload and verify
+The installer will:
+
+1. Prepare the local Python virtual environment under `synergy-mcp/.venv`
+2. Install synergy-mcp and its dependencies
+3. Write `.vscode/mcp.json` configuration in the repository
+4. Configure VS Code to start the synergy-mcp server over stdio
+5. Install Synergy skills to your Copilot skills folder
+
+## Step 5 — Reload and Verify
 
 1. In VS Code, run `Developer: Reload Window`.
 2. Open Copilot Chat in Agent mode.
 3. Ask: `List the Synergy databases you can see.`
-4. Ask: `Run health_check for prod-core.`
+4. Ask: `Run health_check for a database.`
 5. Type `/synergy-core` and confirm the skill appears.
-6. Ask: `Read synergy://skills/synergy-core`.
+6. Ask: `Show me the available Synergy commands.`
 
 ## Generated config
 
-The installer writes this shape to `mcp.json`:
+The installer writes this shape to `.vscode/mcp.json`:
 
 ```json
 {
@@ -76,13 +169,6 @@ The installer writes this shape to `mcp.json`:
 
 On Linux the Python path is `synergy-mcp/.venv/bin/python`.
 
-By default, the JSON is written at:
+---
 
-- Windows: `%APPDATA%\Code\User\mcp.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`
-- macOS: `~/Library/Application Support/Code/User/mcp.json`
-
-The installer also refreshes Synergy skill folders at:
-
-- Windows: `%USERPROFILE%\.copilot\skills\synergy-*`
-- Linux/macOS: `~/.copilot/skills/synergy-*`
+**End of guide.** See [INSTALL.html](INSTALL.html) for the main installation guide and other transport options.

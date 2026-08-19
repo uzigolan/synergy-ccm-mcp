@@ -3,72 +3,153 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Installing the Synergy CCM MCP Toolkit — VS Code Copilot</title>
+<title>Installing the Synergy CCM MCP Toolkit — VS Code Copilot (MCP stdio)</title>
 <style>
-  :root { color-scheme: light dark; --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --code-bg:#f6f8fa; --active:#0b6bcb; --panel:#eef2f7; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --border:#3d444d; --code-bg:#161b22; --active:#1f6feb; --panel:#0f141b; } }
-  body { margin:0 auto; max-width:960px; padding:2rem 1.25rem 3rem; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  :root {
+    color-scheme: light dark;
+    --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --border:#d1d9e0;
+    --code-bg:#f6f8fa; --active:#0b6bcb; --panel:#eef2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --border:#3d444d;
+      --code-bg:#161b22; --active:#1f6feb; --panel:#0f141b;
+    }
+  }
+  body {
+    margin:0 auto; max-width:960px; padding:2rem 1.25rem 3rem;
+    background:var(--bg); color:var(--fg);
+    font:16px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
   h1 { font-size:1.8rem; line-height:1.25; margin:0 0 1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem; }
   h2 { font-size:1.2rem; margin:1.2rem 0 .7rem; }
+  h3 { font-size:1rem; margin:1rem 0 .55rem; }
   p { margin:.65rem 0; }
-  a { color:var(--active); }
-  table { border-collapse:collapse; width:100%; margin:1rem 0; }
-  th, td { border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
   .muted { color:var(--muted); }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:1rem; margin:1rem 0; }
-  code { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.9em; background:var(--code-bg); border:1px solid var(--border); border-radius:4px; padding:.1em .35em; }
+  code { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+    font-size:.9em; background:var(--code-bg); border:1px solid var(--border);
+    border-radius:4px; padding:.1em .35em; }
   pre { background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:2.1rem 1rem .9rem; overflow-x:auto; position:relative; }
   pre code { background:none; border:none; padding:0; }
-  .copy-cmd-btn { position:absolute; top:.45rem; right:.45rem; border:1px solid var(--border); background:var(--panel); color:var(--fg); border-radius:6px; padding:.2rem .5rem; font-size:.75rem; cursor:pointer; }
+  .copy-cmd-btn {
+    position:absolute; top:.45rem; right:.45rem;
+    border:1px solid var(--border); background:var(--panel); color:var(--fg);
+    border-radius:6px; padding:.2rem .5rem; font-size:.75rem; cursor:pointer;
+  }
   .copy-cmd-btn:hover { border-color:var(--active); color:var(--active); }
   .copy-cmd-btn.copied { color:#0b7a43; border-color:#0b7a43; }
+  .copy-cmd-btn.failed { color:#b62324; border-color:#b62324; }
   ul, ol { padding-left:1.35rem; }
   li { margin:.2rem 0; }
   hr { border:none; border-top:1px solid var(--border); margin:1.4rem 0; }
 </style>
 </head>
 <body>
+
 <h1>Installing the Synergy CCM MCP Toolkit</h1>
-<p class="muted">VS Code GitHub Copilot + MCP stdio — local flow.</p>
+<p class="muted">VS Code GitHub Copilot + MCP stdio — the default local flow.</p>
 
 <div class="panel">
-  <h2>Contents</h2>
-  <p><a href="#what">What this installs</a> · <a href="#before">Before you start</a> · <a href="#server">Prepare the server</a> · <a href="#config">Write VS Code MCP config</a> · <a href="#verify">Reload and verify</a> · <a href="#generated">Generated config</a></p>
+  <h2>Installation Kind: Local STDIO</h2>
+  <p>This is the <strong>local STDIO flow</strong>. The VS Code client launches the synergy-mcp server locally over stdio. Requires:</p>
+  <ul>
+    <li>Local Python 3.10+ on this machine</li>
+    <li>Synergy CCM client installed and configured on this machine</li>
+    <li>Full local toolset (all MCP tools available)</li>
+    <li>Read-only Git access to retrieve the repository (via internal git server)</li>
+  </ul>
+  <p>For remote HTTP server flows, see the main <a href="INSTALL.html">INSTALL.html</a> guide.</p>
 </div>
 
-<h2 id="what">What this installs</h2>
-<p>This flow configures VS Code GitHub Copilot to start <code>synergy-mcp</code> locally over stdio.</p>
-<p>It writes <code>.vscode/mcp.json</code> in this repository. The command points at the repo-local Python virtual environment under <code>synergy-mcp/.venv</code>.</p>
-<p>Synergy skills are not installed into VS Code as embedded files. They are served by the MCP server through <code>synergy://skills</code> resources.</p>
+<div class="panel">
+  <h2>Before You Start</h2>
+  <ul>
+    <li>Run commands from the repository root.</li>
+    <li>Use this flow for local stdio transport (default).</li>
+  </ul>
+</div>
 
-<h2 id="before">Before you start</h2>
+<h2>Step 1 - Prepare Your Environment</h2>
 <ul>
-  <li>Install VS Code and the official GitHub Copilot extension.</li>
-  <li>Install the Synergy <code>ccm</code> client on this machine.</li>
-  <li>Run all commands from the repo root, <code>rad-synergy-toolkit/</code>.</li>
+  <li>Download and install VS Code: <a href="https://code.visualstudio.com/download">https://code.visualstudio.com/download</a></li>
+  <li>Download and install Git:</li>
+  <li>Windows: <a href="https://git-scm.com/install/windows">https://git-scm.com/install/windows</a></li>
+  <li>Linux: <a href="https://git-scm.com/download/linux">https://git-scm.com/download/linux</a></li>
+  <li>macOS: <a href="https://git-scm.com/download/mac">https://git-scm.com/download/mac</a></li>
+  <li>Install the official GitHub Copilot extension for VS Code: <a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot">https://marketplace.visualstudio.com/items?itemName=GitHub.copilot</a></li>
+  <li>Install the Synergy CCM client on your machine and ensure it is configured and accessible.</li>
 </ul>
 
-<h2 id="server">Step 1 - Prepare the server</h2>
-<p>Windows PowerShell:</p>
-<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1</code></pre>
-<p>Linux bash:</p>
-<pre><code>bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh</code></pre>
+<h2>Step 2 - Setup</h2>
+<h3>New</h3>
+<pre><code>git clone git://172.18.178.24/rad-synergy synergy-ccm-mcp
+cd synergy-ccm-mcp</code></pre>
+<h3>Update</h3>
+<pre><code>cd synergy-ccm-mcp
+git pull</code></pre>
 
-<h2 id="config">Step 2 - Write VS Code MCP config</h2>
-<p>Windows PowerShell:</p>
+<h2>Step 2a - Configure Your Synergy CCM Credentials (Optional)</h2>
+<p>The synergy-mcp MCP server needs YOUR credentials to access the Synergy CCM database. Use the automated credential configuration script (run from repo root):</p>
+
+<h3>Windows (PowerShell)</h3>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\configure-synergy-credentials.ps1</code></pre>
+
+<h3>Linux / macOS (bash)</h3>
+<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/configure-synergy-credentials.sh</code></pre>
+
+<h3>What the script does:</h3>
+<ul>
+  <li>Prompts for your Synergy CCM username</li>
+  <li>Prompts for your Synergy CCM password (secure input)</li>
+  <li>Stores the encrypted password securely on your system</li>
+  <li>Sets environment variables: <code>CCM_USER</code>, <code>CCM_ADDR</code>, <code>CCM_CRED_FILE</code></li>
+</ul>
+
+<h3>Manual Setup (if preferred)</h3>
+<p><strong>Windows (Credential Manager):</strong></p>
+<pre><code>$CredDir = "$env:APPDATA\synergy-mcp"
+New-Item -ItemType Directory -Force -Path $CredDir | Out-Null
+
+$username = "your-synergy-username"
+$cred = Get-Credential -UserName $username -Message "Enter your Synergy CCM password"
+$cred.Password | ConvertFrom-SecureString | Set-Content "$CredDir\ccm_password.txt"
+
+[Environment]::SetEnvironmentVariable("CCM_USER", "$username", "User")
+[Environment]::SetEnvironmentVariable("CCM_ADDR", "your-ccm-server:5580", "User")</code></pre>
+
+<p><strong>Linux / macOS (System Keychain):</strong></p>
+<pre><code>YOUR_USERNAME="your-synergy-username"
+read -sp "Enter your Synergy CCM password: " CCM_PASSWORD
+echo "$CCM_PASSWORD" | pass insert synergy-ccm/password
+
+echo "export CCM_USER=\"$YOUR_USERNAME\"" >> ~/.bashrc
+echo 'export CCM_ADDR="your-ccm-server:5580"' >> ~/.bashrc
+source ~/.bashrc</code></pre>
+
+<h2>Step 3 - Install MCP STDIO and Copilot on VS Code</h2>
+<p>Windows (PowerShell):</p>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-vscode-copilot-stdio.ps1</code></pre>
-<p>Linux bash:</p>
+<p>Linux/macOS (bash):</p>
 <pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-vscode-copilot-stdio.sh</code></pre>
+<p>The installer will:</p>
+<ul>
+  <li>Prepare the local Python virtual environment under <code>synergy-mcp/.venv</code></li>
+  <li>Write <code>.vscode/mcp.json</code> configuration in the repository</li>
+  <li>Configure VS Code to start the synergy-mcp server over stdio</li>
+  <li>Install Synergy skills to your Copilot skills folder</li>
+</ul>
 
-<h2 id="verify">Step 3 - Reload and verify</h2>
+<h2>Step 4 - Reload and Verify</h2>
 <ol>
   <li>In VS Code, run <code>Developer: Reload Window</code>.</li>
   <li>Open Copilot Chat in Agent mode.</li>
   <li>Ask: <code>List the Synergy databases you can see.</code></li>
-  <li>Ask: <code>Run health_check for prod-core.</code></li>
+  <li>Ask: <code>Run health_check for a database.</code></li>
+  <li>Type <code>/synergy-core</code> and confirm the skill appears.</li>
 </ol>
 
-<h2 id="generated">Generated config</h2>
+<h2>Generated config</h2>
 <p>The installer writes this shape to <code>.vscode/mcp.json</code>:</p>
 <pre><code>{
   "servers": {
@@ -94,8 +175,8 @@
     btn.type = 'button'; btn.className = 'copy-cmd-btn'; btn.textContent = 'Copy';
     btn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(codeEl.innerText.replace(/\u00a0/g, ' ')); btn.textContent = 'Copied'; btn.classList.add('copied'); }
-      catch { btn.textContent = 'Failed'; }
-      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1400);
+      catch { btn.textContent = 'Failed'; btn.classList.add('failed'); }
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied', 'failed'); }, 1400);
     });
     preEl.appendChild(btn);
   });
