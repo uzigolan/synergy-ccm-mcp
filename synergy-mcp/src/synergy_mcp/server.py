@@ -21,6 +21,7 @@ from .exec import CcmError
 from .formats import (
     DEFAULT_CR_FIELDS,
     DEFAULT_OBJECT_FIELDS,
+    DEFAULT_PROJECT_FIELDS,
     DEFAULT_TASK_FIELDS,
     format_spec,
     is_empty_result,
@@ -68,6 +69,8 @@ _REGISTERED_TOOLS = frozenset(
         "task_objects",
         "task_objects_bulk",
         "find_tasks",
+        "find_projects",
+        "find_objects",
         "find_crs",
         "find_trs",
         "trs_info",
@@ -277,7 +280,7 @@ def _capability_records() -> list[dict]:
         {
             "name": "query-and-reporting",
             "summary": "Run bounded Synergy queries with pagination, grouping, counts and CSV/TSV export.",
-            "tools": ["query", "find_tasks", "find_crs", "find_releases", "list_attributes"],
+            "tools": ["query", "find_tasks", "find_crs", "find_projects", "find_objects", "find_releases", "list_attributes"],
             "skills": ["synergy-query-language", "synergy-reporting"],
         },
         {
@@ -318,13 +321,13 @@ def _capability_records() -> list[dict]:
         {
             "name": "task-and-project-audit",
             "summary": "Inspect tasks, changed objects, project membership, baselines and release task sets.",
-            "tools": ["task_info", "task_objects", "task_objects_bulk", "project_members", "find_baselines", "project_grouping_info"],
+            "tools": ["find_tasks", "find_projects", "task_info", "task_objects", "task_objects_bulk", "project_members", "find_baselines", "project_grouping_info"],
             "skills": ["synergy-task-project", "synergy-object-model"],
         },
         {
             "name": "object-history-and-diff",
             "summary": "Read object properties, attributes, content, history, diffs and finduse data.",
-            "tools": ["object_properties", "object_attributes", "attribute_value", "object_content", "object_history", "object_diff", "find_use"],
+            "tools": ["find_objects", "object_properties", "object_attributes", "attribute_value", "object_content", "object_history", "object_diff", "find_use"],
             "skills": ["synergy-object-model"],
         },
         {
@@ -562,16 +565,19 @@ def find_tasks(
     resolver: str | None = None,
     completed_since: str | None = None,
     completed_until: str | None = None,
+    modified_since: str | None = None,
+    modified_until: str | None = None,
     max_rows: int | None = None,
     offset: int = 0,
     group_by: list[str] | None = None,
     count_only: bool = False,
     format: str = "rows",
 ) -> dict:
-    """Query tasks by owner, resolver, release, status and completion date.
+    """Query tasks by owner, resolver, release, status and bounded date filters.
 
     Use `release_match='etxa*'` to roll up a whole product line, and
     `completed_since='1/2/2026'` / 'H1 2026' / 'last 6 months' for date windows.
+    Use modified_since/modified_until for tasks modified in a time window.
     """
     clauses = ["cvtype='task'"]
     for field, value in (
@@ -588,15 +594,157 @@ def find_tasks(
         clauses.append(_date_clause("completion_date", completed_since, ">"))
     if completed_until:
         clauses.append(_date_clause("completion_date", completed_until, "<"))
+    if modified_since:
+        clauses.append(_date_clause("modify_time", modified_since, ">"))
+    if modified_until:
+        clauses.append(_date_clause("modify_time", modified_until, "<"))
 
     fields = list(DEFAULT_TASK_FIELDS)
     if completed_since or completed_until or (group_by and "completion_date" in group_by):
         fields.append("completion_date")
+    if modified_since or modified_until or (group_by and "modify_time" in group_by):
+        fields.append("modify_time")
 
     return _run_query(
         database,
         " and ".join(clauses),
         fields,
+        max_rows,
+        offset=offset,
+        group_by=group_by,
+        count_only=count_only,
+        output_format=format,
+    )
+
+
+@mcp.tool()
+def find_projects(
+    database: str,
+    name: str | None = None,
+    name_match: str | None = None,
+    release: str | None = None,
+    release_match: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    modified_since: str | None = None,
+    modified_until: str | None = None,
+    max_rows: int | None = None,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    format: str = "rows",
+) -> dict:
+    """Find Synergy projects with bounded name, release, owner, status or date filters."""
+    clauses = ["cvtype='project'"]
+    for field, value in (
+        ("name", name),
+        ("release", release),
+        ("status", status),
+        ("owner", owner),
+    ):
+        if value:
+            clauses.append(_eq_clause(field, value))
+    if name_match:
+        clauses.append(_match_clause("name", name_match))
+    if release_match:
+        clauses.append(_match_clause("release", release_match))
+    if modified_since:
+        clauses.append(_date_clause("modify_time", modified_since, ">"))
+    if modified_until:
+        clauses.append(_date_clause("modify_time", modified_until, "<"))
+
+    return _run_query(
+        database,
+        " and ".join(clauses),
+        list(DEFAULT_PROJECT_FIELDS),
+        max_rows,
+        offset=offset,
+        group_by=group_by,
+        count_only=count_only,
+        output_format=format,
+    )
+
+
+@mcp.tool()
+def find_objects(
+    database: str,
+    name: str | None = None,
+    name_match: str | None = None,
+    cvtype: str | None = None,
+    type: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    release: str | None = None,
+    task: str | None = None,
+    modified_since: str | None = None,
+    modified_until: str | None = None,
+    created_since: str | None = None,
+    created_until: str | None = None,
+    max_rows: int | None = None,
+    offset: int = 0,
+    group_by: list[str] | None = None,
+    count_only: bool = False,
+    format: str = "rows",
+) -> dict:
+    """Find file/object versions with required narrowing filters.
+
+    Refuses unfiltered calls so broad object scans do not flood Synergy or the chat.
+    Use `type` for file type such as csrc and `cvtype` for object category.
+    """
+    if not any(
+        [
+            name,
+            name_match,
+            cvtype,
+            type,
+            status,
+            owner,
+            release,
+            task,
+            modified_since,
+            modified_until,
+            created_since,
+            created_until,
+        ]
+    ):
+        raise ValueError("find_objects requires at least one narrowing filter.")
+
+    clauses: list[str] = []
+    if name:
+        clauses.append(_eq_clause("name", name))
+    if name_match:
+        clauses.append(_match_clause("name", name_match))
+    if cvtype:
+        clauses.append(f"cvtype='{_safe_cvtype(cvtype)}'")
+    for field, value in (
+        ("type", type),
+        ("status", status),
+        ("owner", owner),
+        ("release", release),
+        ("task", task),
+    ):
+        if value:
+            clauses.append(_eq_clause(field, value))
+    if modified_since:
+        clauses.append(_date_clause("modify_time", modified_since, ">"))
+    if modified_until:
+        clauses.append(_date_clause("modify_time", modified_until, "<"))
+    if created_since:
+        clauses.append(_date_clause("create_time", created_since, ">"))
+    if created_until:
+        clauses.append(_date_clause("create_time", created_until, "<"))
+
+    fields = list(DEFAULT_OBJECT_FIELDS)
+    if modified_since or modified_until or (group_by and "modify_time" in group_by):
+        fields.append("modify_time")
+    for optional in ("release", "task"):
+        if optional in (group_by or []) or locals()[optional]:
+            fields.append(optional)
+
+    return _run_query(
+        database,
+        " and ".join(clauses),
+        list(dict.fromkeys(fields)),
         max_rows,
         offset=offset,
         group_by=group_by,
@@ -617,17 +765,25 @@ def find_crs(
     product_name: str | None = None,
     entered_since: str | None = None,
     entered_until: str | None = None,
+    changed_since: str | None = None,
+    changed_until: str | None = None,
+    resolved_since: str | None = None,
+    resolved_until: str | None = None,
+    concluded_since: str | None = None,
+    concluded_until: str | None = None,
     max_rows: int | None = None,
     offset: int = 0,
     group_by: list[str] | None = None,
     count_only: bool = False,
     format: str = "rows",
 ) -> dict:
-    """Query change requests (`cvtype='problem'`) by TRS, status, severity, release and entry date.
+    """Query change requests (`cvtype='problem'`) with bounded CR/date filters.
 
     The CR counterpart of find_tasks. Returns the standard CR field set:
     problem_number, trs, crstatus, severity, priority, product_name, phase_found,
     submitter_name, resolver, entry/resolution/conclusion dates and synopsis.
+    Use changed_since/changed_until for CRs modified in a time window, resolved_since
+    for resolution_date, and concluded_since for conclusion_date.
     """
     clauses = ["cvtype='problem'"]
     for field, value in (
@@ -646,11 +802,27 @@ def find_crs(
         clauses.append(_date_clause("entry_date", entered_since, ">"))
     if entered_until:
         clauses.append(_date_clause("entry_date", entered_until, "<"))
+    if changed_since:
+        clauses.append(_date_clause("modify_time", changed_since, ">"))
+    if changed_until:
+        clauses.append(_date_clause("modify_time", changed_until, "<"))
+    if resolved_since:
+        clauses.append(_date_clause("resolution_date", resolved_since, ">"))
+    if resolved_until:
+        clauses.append(_date_clause("resolution_date", resolved_until, "<"))
+    if concluded_since:
+        clauses.append(_date_clause("conclusion_date", concluded_since, ">"))
+    if concluded_until:
+        clauses.append(_date_clause("conclusion_date", concluded_until, "<"))
+
+    fields = list(DEFAULT_CR_FIELDS)
+    if changed_since or changed_until or (group_by and "modify_time" in group_by):
+        fields.append("modify_time")
 
     return _run_query(
         database,
         " and ".join(clauses),
-        list(DEFAULT_CR_FIELDS),
+        fields,
         max_rows,
         offset=offset,
         group_by=group_by,

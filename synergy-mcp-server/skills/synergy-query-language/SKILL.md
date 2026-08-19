@@ -7,6 +7,8 @@ servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
   - query
   - find_tasks
+  - find_projects
+  - find_objects
   - find_baselines
   - find_releases
   - list_attributes
@@ -81,7 +83,7 @@ cvtype='task' and release match 'etxa*'
 cvtype='releasedef' and name match '*etx2i*'
 ```
 
-`find_tasks(release_match='etxa*')` and `find_crs(release_match='etxa*')` wrap this.
+`find_tasks(release_match='etxa*')`, `find_projects(release_match='etxa*')` and `find_crs(release_match='etxa*')` wrap this.
 Rolling up a product line always needs `match`, since `release='etxa'` matches nothing.
 
 ## Aggregation
@@ -105,13 +107,19 @@ as a `text` blob instead of JSON. The server never writes files.
 Find file versions:
 
 ```text
-query(database, "name='parser.c' and cvtype='csrc'", ["objectname", "status", "owner", "task"])
+find_objects(database, name="parser.c", cvtype="csrc", max_rows=50)
 ```
 
 Find release tasks:
 
 ```text
 find_tasks(database, release="product/2.0", status="completed", max_rows=200)
+```
+
+Find projects:
+
+```text
+find_projects(database, name_match="*core*", max_rows=100)
 ```
 
 Find direct project members:

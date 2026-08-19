@@ -13,6 +13,16 @@ FIELD_SEP = "\x1f"
 
 DEFAULT_OBJECT_FIELDS = ["objectname", "status", "owner", "type", "create_time"]
 DEFAULT_TASK_FIELDS = ["displayname", "task_synopsis", "status", "resolver", "release"]
+DEFAULT_PROJECT_FIELDS = [
+    "objectname",
+    "name",
+    "version",
+    "status",
+    "owner",
+    "release",
+    "create_time",
+    "modify_time",
+]
 DEFAULT_CR_FIELDS = [
     "problem_number",
     "trs",

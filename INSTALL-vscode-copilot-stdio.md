@@ -1,6 +1,6 @@
 # Installing for VS Code Copilot — Local STDIO
 
-**Contents:** [Installation Kind](#installation-kind) · [Before you start](#before-you-start) · [Step 1 — Environment](#step-1--prepare-your-environment) · [Step 2 — Setup](#step-2--setup) · [Step 3 — Install](#step-3--install-mcp-stdio) · [Step 4 — Verify](#step-4--reload-and-verify) · [Generated config](#generated-config)
+**Contents:** [Installation Kind](#installation-kind) · [Before you start](#before-you-start) · [Step 1 — Environment](#step-1--prepare-your-environment) · [Step 2 — Setup](#step-2--setup) · [Step 3 — Credentials](#step-3--configureupdate-your-synergy-ccm-credentials) · [Step 4 — Install](#step-4--install-mcp-stdio-and-copilot-on-vs-code) · [Step 5 — Verify](#step-5--reload-and-verify) · [Generated config](#generated-config)
 
 ## Installation Kind
 
@@ -50,9 +50,9 @@ cd synergy-ccm-mcp
 git pull
 ```
 
-## Step 2a — Configure Your Synergy CCM Credentials (Optional)
+## Step 3 — Configure/Update Your Synergy CCM Credentials
 
-The synergy-mcp MCP server needs your credentials to access the Synergy CCM database. Use the automated credential configuration script (run from repo root):
+The synergy-mcp MCP server needs your Synergy CCM username and password. The database path is already configured in `synergy-mcp/inventory.yaml`; do not enter `/ccmdb/prod` here.
 
 **Windows (PowerShell):**
 
@@ -66,56 +66,19 @@ PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\sk
 bash ./synergy-mcp-server/scripts/install/skills_and_mcp/configure-synergy-credentials.sh
 ```
 
-**Manual Setup (if preferred):**
-
-If you prefer to configure credentials manually, see the [manual setup section](#manual-credential-setup) below.
-
 ### What the script does:
 
-1. Prompts for your Synergy CCM username
-2. Prompts for your Synergy CCM password (secure input)
-3. Stores the encrypted password securely:
+1. Checks the Synergy CCM CLI binary path in `synergy-mcp/inventory.yaml`
+2. Finds `ccm.exe` automatically or prompts for a different path if needed
+3. Prompts for your Synergy CCM username
+4. Prompts for your Synergy CCM password (secure input)
+5. Stores the encrypted password securely:
    - **Windows**: `%APPDATA%\synergy-mcp\ccm_password.txt`
    - **Linux**: System keychain or encrypted file
    - **macOS**: System Keychain
-4. Sets environment variables: `CCM_USER`, `CCM_ADDR`, `CCM_CRED_FILE`
+6. Sets environment variables: `SYNERGY_MCP_USER`, `SYNERGY_MCP_PASSWORD`, `CCM_CRED_FILE`
 
----
-
-### Manual Credential Setup
-
-**Windows (Credential Manager):**
-
-```powershell
-# Create the directory if it doesn't exist
-$CredDir = "$env:APPDATA\synergy-mcp"
-New-Item -ItemType Directory -Force -Path $CredDir | Out-Null
-
-# Store YOUR password securely (replace with your actual username)
-$username = "your-synergy-username"
-$cred = Get-Credential -UserName $username -Message "Enter your Synergy CCM password"
-$cred.Password | ConvertFrom-SecureString | Set-Content "$CredDir\ccm_password.txt"
-
-# Set your environment variables
-[Environment]::SetEnvironmentVariable("CCM_USER", "$username", "User")
-[Environment]::SetEnvironmentVariable("CCM_ADDR", "your-ccm-server:5580", "User")
-```
-
-**Linux/macOS (System Keychain):**
-
-```bash
-# Store YOUR password in system keychain (replace with your actual username)
-YOUR_USERNAME="your-synergy-username"
-read -sp "Enter your Synergy CCM password: " CCM_PASSWORD
-echo "$CCM_PASSWORD" | pass insert synergy-ccm/password
-
-# Set your environment variables
-echo "export CCM_USER=\"$YOUR_USERNAME\"" >> ~/.bashrc
-echo 'export CCM_ADDR="your-ccm-server:5580"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## Step 4 — Install MCP STDIO
+## Step 4 — Install MCP STDIO and Copilot on VS Code
 
 Prepare the synergy-mcp server once per machine. This creates the repo-local Python environment under `synergy-mcp/.venv` and installs the internal packages.
 

@@ -6,6 +6,7 @@ families: [ccm72]
 servers: [synergy-ccm-mcp, synergy-mcp]
 requires_tools:
   - find_tasks
+  - find_projects
   - task_info
   - task_objects
   - task_objects_bulk
@@ -33,7 +34,8 @@ Confirm `health_check(database)` has succeeded. If task/project tools are missin
 4. **Use direct project members first.** Recursive hierarchy queries can be very large.
 5. **Aggregate large audits.** Summarize counts and notable objects before drilling into every task.
 6. **Never loop `task_objects`.** Use `task_objects_bulk` for more than a couple of tasks.
-7. **A feature can be backported.** The release where a task completed is not always where the feature originated — check the whole `release_match` set before concluding.
+7. **Use find wrappers before raw queries.** Prefer `find_tasks` and `find_projects` for common task/project lookups; they keep filters bounded and support counts/grouping.
+8. **A feature can be backported.** The release where a task completed is not always where the feature originated — check the whole `release_match` set before concluding.
 
 ## Tasks
 
@@ -48,6 +50,7 @@ Find tasks:
 
 ```text
 find_tasks(database, owner="uzi", release="product/2.0", status="completed", max_rows=200)
+find_tasks(database, modified_since="2026-08-19", count_only=True)
 ```
 
 Objects for many tasks at once, with a file-frequency rollup:
@@ -72,6 +75,13 @@ find_tasks(database, release_match="etxa*", completed_since="H1 2026",
 Date windows accept `2/1/2026`, `2026-02-01`, `H1 2026` or `last 6 months`.
 
 ## Projects
+
+Find projects:
+
+```text
+find_projects(database, name_match="*core*", max_rows=100)
+find_projects(database, release_match="etxa*", group_by=["status"])
+```
 
 Direct members:
 

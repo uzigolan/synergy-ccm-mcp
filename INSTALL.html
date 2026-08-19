@@ -34,14 +34,15 @@
 
 <div class="panel">
   <h2>Contents</h2>
-  <p><a href="#installation-kinds">Installation kinds</a> · <a href="#prerequisites">Prerequisites</a> · <a href="#setup">Setup</a> · <a href="#prepare">Prepare the MCP server</a> · <a href="#access">Configure Synergy access</a> · <a href="#client">Install a client target</a> · <a href="#verify">Verify</a> · <a href="#update">Update</a> · <a href="#troubleshooting">Troubleshooting</a></p>
+  <p><a href="#installation-kinds">Installation kinds</a> · <a href="#prerequisites">Prerequisites</a> · <a href="#setup">Setup</a> · <a href="#prepare">Prepare the MCP server</a> · <a href="#credentials">Configure/Update Synergy credentials</a> · <a href="#client">Install a client target</a> · <a href="#verify">Verify</a> · <a href="#update">Update</a> · <a href="#troubleshooting">Troubleshooting</a></p>
 </div>
 
 <h2 id="installation-kinds">Installation kinds</h2>
 <table>
   <tr><th>Kind</th><th>Use when</th><th>Guide</th></tr>
   <tr><td>VS Code Copilot stdio</td><td>VS Code starts the MCP server locally</td><td><a href="INSTALL-vscode-copilot-stdio.html">INSTALL-vscode-copilot-stdio.html</a></td></tr>
-  <tr><td>Claude Desktop MCPB</td><td>Claude Desktop imports a local extension bundle</td><td><a href="INSTALL-claude-desktop-mcpb.html">INSTALL-claude-desktop-mcpb.html</a></td></tr>
+  <tr><td>Claude Desktop stdio</td><td>Claude Desktop starts the MCP server locally</td><td><a href="INSTALL-claude-desktop-stdio.html">INSTALL-claude-desktop-stdio.html</a></td></tr>
+  <tr><td>Claude Desktop MCPB</td><td>Future packaging flow, not the current local install path</td><td><a href="INSTALL-claude-desktop-mcpb.html">INSTALL-claude-desktop-mcpb.html</a></td></tr>
 </table>
 <p>Both targets use the same Python package, inventory file, credential model and knowledge corpus.</p>
 
@@ -57,10 +58,10 @@
 
 <h2 id="setup">Step 1 - Setup</h2>
 <h3>New checkout</h3>
-<pre><code>git clone https://github.com/uzigolan/synergy-ccm-mcp.git rad-synergy-toolkit
-cd rad-synergy-toolkit</code></pre>
+<pre><code>git clone git://172.18.178.24/rad-synergy synergy-ccm-mcp
+cd synergy-ccm-mcp</code></pre>
 <h3>Existing checkout</h3>
-<pre><code>cd rad-synergy-toolkit
+<pre><code>cd synergy-ccm-mcp
 git pull</code></pre>
 
 <h2 id="prepare">Step 2 - Prepare the MCP server</h2>
@@ -70,24 +71,22 @@ git pull</code></pre>
 <pre><code>bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh</code></pre>
 <p>This creates <code>synergy-mcp/.venv</code>, installs <code>synergy-mcp</code>, and creates <code>synergy-mcp/inventory.yaml</code> if needed.</p>
 
-<h2 id="access">Step 3 - Configure Synergy access</h2>
-<p>Edit <code>synergy-mcp/inventory.yaml</code>. Put database facts there, never passwords.</p>
-<p>For one shared MCP-level Synergy identity:</p>
+<h2 id="credentials">Step 3 - Configure/Update Synergy Credentials</h2>
+<p>The synergy-mcp MCP server needs your Synergy CCM username and password. The credential script also checks the Synergy CCM CLI binary path in <code>synergy-mcp/inventory.yaml</code>, finds <code>ccm.exe</code> automatically, or prompts for a different path if needed. The database path is already configured in <code>synergy-mcp/inventory.yaml</code>; do not enter <code>/ccmdb/prod</code> here.</p>
 <p>Windows PowerShell:</p>
-<pre><code>$env:SYNERGY_MCP_USER = "your-synergy-user"
-$env:SYNERGY_MCP_PASSWORD = "your-synergy-password"</code></pre>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\configure-synergy-credentials.ps1</code></pre>
 <p>Linux bash:</p>
-<pre><code>export SYNERGY_MCP_USER="your-synergy-user"
-export SYNERGY_MCP_PASSWORD="your-synergy-password"</code></pre>
+<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/configure-synergy-credentials.sh</code></pre>
+<p>The script sets <code>SYNERGY_MCP_USER</code>, <code>SYNERGY_MCP_PASSWORD</code>, and <code>CCM_CRED_FILE</code> for your user.</p>
 <p>Preferred for production: start <code>ccm</code> yourself and set <code>SYNERGY_&lt;DB&gt;_CCM_ADDR</code> so the MCP process never handles a password.</p>
 
 <h2 id="client">Step 4 - Install a client target</h2>
 <p>VS Code Copilot:</p>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-vscode-copilot-stdio.ps1</code></pre>
 <pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-vscode-copilot-stdio.sh</code></pre>
-<p>Claude Desktop MCPB:</p>
-<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-mcpb.ps1</code></pre>
-<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-mcpb.sh</code></pre>
+<p>Claude Desktop stdio:</p>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-stdio.ps1</code></pre>
+<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh</code></pre>
 
 <h2 id="verify">Step 5 - Verify</h2>
 <p>In the MCP client, ask:</p>
@@ -96,16 +95,16 @@ export SYNERGY_MCP_PASSWORD="your-synergy-password"</code></pre>
 <pre><code>Find completed tasks for release product/2.0, max 20 rows.</code></pre>
 
 <h2 id="update">Update</h2>
-<pre><code>cd rad-synergy-toolkit
+<pre><code>cd synergy-ccm-mcp
 git pull</code></pre>
 <p>Then rerun the relevant installer. Existing <code>inventory.yaml</code> is kept.</p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
 <table>
   <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
-  <tr><td><code>ccm</code> not found</td><td>Synergy client is not on <code>PATH</code></td><td>Set <code>SYNERGY_CCM_BINARY</code> or update <code>PATH</code></td></tr>
+  <tr><td><code>ccm</code> not found</td><td>Synergy client path is not configured</td><td>Rerun the credential script and enter the full <code>ccm.exe</code> path when prompted</td></tr>
   <tr><td>Inventory not found</td><td><code>synergy-mcp/inventory.yaml</code> missing</td><td>Rerun the stdio server installer</td></tr>
-  <tr><td>No user/password</td><td>Env vars missing</td><td>Set <code>SYNERGY_MCP_USER</code> and <code>SYNERGY_MCP_PASSWORD</code>, or use attach mode</td></tr>
+  <tr><td>No user/password</td><td>Env vars missing</td><td>Rerun the credential script, or use attach mode</td></tr>
   <tr><td>License exhaustion</td><td>Too many Synergy sessions</td><td>Prefer attach mode or a shared server process</td></tr>
   <tr><td>Client shows no server</td><td>Config not reloaded</td><td>Restart or reload the client after install</td></tr>
 </table>

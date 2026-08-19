@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Desktop MCPB Packaging - Future Flow</title>
+<title>Installing the Synergy CCM MCP Toolkit - Claude Desktop STDIO</title>
 <style>
   :root { color-scheme: light dark; --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --code-bg:#f6f8fa; --active:#0b6bcb; --panel:#eef2f7; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --border:#3d444d; --code-bg:#161b22; --active:#1f6feb; --panel:#0f141b; } }
@@ -29,33 +29,25 @@
 </style>
 </head>
 <body>
-<h1>Claude Desktop MCPB Packaging</h1>
-<p class="muted">Future flow. Use local stdio for current Claude Desktop installs.</p>
+<h1>Installing the Synergy CCM MCP Toolkit</h1>
+<p class="muted">Claude Desktop + local MCP stdio.</p>
 
 <div class="panel">
-  <h2>Use STDIO Now</h2>
-  <p>MCPB is not the current Claude Desktop install path for this project. Use <a href="INSTALL-claude-desktop-stdio.html">INSTALL-claude-desktop-stdio.html</a>.</p>
-  <p>This MCPB flow is reserved for later packaging work when the project ships an MCP HTTP/server flow.</p>
+  <h2>Installation Kind: Local STDIO</h2>
+  <p>Claude Desktop starts the local <code>synergy-mcp</code> server directly over stdio.</p>
+  <p>Use MCPB later only when the project ships a packaged HTTP/server flow. For now, do not use MCPB as the normal install path.</p>
 </div>
 
-<div class="panel">
-  <h2>Contents</h2>
-  <p><a href="#what">What this installs</a> · <a href="#before">Before you start</a> · <a href="#setup">Setup</a> · <a href="#server">Prepare the server</a> · <a href="#credentials">Configure/Update credentials</a> · <a href="#build">Build the MCPB</a> · <a href="#import">Import into Claude Desktop</a> · <a href="#verify">Verify</a> · <a href="#artifacts">Generated artifacts</a></p>
-</div>
-
-<h2 id="what">What this installs</h2>
-<p>This future flow builds a Claude Desktop MCPB bundle. It is not the recommended local install path today.</p>
-<p>The bundle points at the repo-local Python virtual environment under <code>synergy-mcp/.venv</code> and the repo-local <code>synergy-mcp/inventory.yaml</code>.</p>
-<p>Synergy skills are not embedded in the MCPB. They are served by the MCP server through <code>synergy://skills</code> resources.</p>
-
-<h2 id="before">Before you start</h2>
+<h2>Before You Start</h2>
 <ul>
   <li>Install Claude Desktop.</li>
+  <li>Install Python 3.10 or newer.</li>
+  <li>Install Git.</li>
   <li>Install the Synergy <code>ccm</code> client on this machine.</li>
-  <li>Run all commands from the repo root, <code>synergy-ccm-mcp/</code>.</li>
+  <li>Run commands from the repository root, <code>synergy-ccm-mcp/</code>.</li>
 </ul>
 
-<h2 id="setup">Step 1 - Setup</h2>
+<h2>Step 1 - Setup</h2>
 <h3>New checkout</h3>
 <pre><code>git clone git://172.18.178.24/rad-synergy synergy-ccm-mcp
 cd synergy-ccm-mcp</code></pre>
@@ -63,47 +55,53 @@ cd synergy-ccm-mcp</code></pre>
 <pre><code>cd synergy-ccm-mcp
 git pull</code></pre>
 
-<h2 id="server">Step 2 - Prepare the server</h2>
+<h2>Step 2 - Prepare the server</h2>
 <p>Windows PowerShell:</p>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\mcp_server\install-stdio-mcp-server.ps1</code></pre>
-<p>Linux bash:</p>
+<p>Linux/macOS bash:</p>
 <pre><code>bash ./synergy-mcp-server/scripts/install/mcp_server/install-stdio-mcp-server.sh</code></pre>
+<p>This creates <code>synergy-mcp/.venv</code>, installs <code>synergy-mcp</code>, and creates <code>synergy-mcp/inventory.yaml</code> if needed.</p>
 
-<h2 id="credentials">Step 3 - Configure/Update Your Synergy CCM Credentials</h2>
+<h2>Step 3 - Configure/Update Your Synergy CCM Credentials</h2>
 <p>The synergy-mcp MCP server needs your Synergy CCM username and password. The credential script also checks the Synergy CCM CLI binary path in <code>synergy-mcp/inventory.yaml</code>, finds <code>ccm.exe</code> automatically, or prompts for a different path if needed. The database path is already configured in <code>synergy-mcp/inventory.yaml</code>; do not enter <code>/ccmdb/prod</code> here.</p>
 <p>Windows PowerShell:</p>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\configure-synergy-credentials.ps1</code></pre>
-<p>Linux bash:</p>
+<p>Linux/macOS bash:</p>
 <pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/configure-synergy-credentials.sh</code></pre>
 
-<h2 id="build">Step 4 - Build the MCPB</h2>
+<h2>Step 4 - Install Claude Desktop STDIO</h2>
 <p>Windows PowerShell:</p>
-<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-mcpb.ps1</code></pre>
-<p>Linux bash:</p>
-<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-mcpb.sh</code></pre>
-<p>The installer also builds a Claude plugin containing all <code>synergy-*</code> skill folders and opens <code>synergy-mcp-server/dist/plugin/</code>.</p>
+<pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-stdio.ps1</code></pre>
+<p>Linux/macOS bash:</p>
+<pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh</code></pre>
+<p>The installer writes a local stdio MCP server entry to Claude Desktop's <code>claude_desktop_config.json</code>.</p>
+<p>Before modifying the file, it saves a timestamped backup next to it and prints the exact MCP server entry it is adding.</p>
+<p>It also builds a Claude plugin containing all <code>synergy-*</code> skills and opens the plugin dist directory:</p>
+<ul>
+  <li>Plugin folder: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp</code></li>
+  <li>Upload zip: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp-plugin.zip</code></li>
+</ul>
 
-<h2 id="import">Step 5 - Import into Claude Desktop</h2>
-<ol>
-  <li>Open Claude Desktop settings.</li>
-  <li>Open Extensions.</li>
-  <li>Choose Install from file.</li>
-  <li>Select <code>synergy-mcp-server/dist/claude-desktop-mcpb/synergy-ccm-mcp-local.mcpb</code>.</li>
-  <li>Save the extension settings.</li>
-  <li>Fully quit Claude Desktop and relaunch it.</li>
-</ol>
-<p>If your Claude Desktop version prefers manual local MCP JSON, use <code>synergy-mcp-server/dist/claude-desktop-local-mcp/synergy-ccm-mcp-local-mcp-server.json</code>.</p>
-
-<h2 id="verify">Step 6 - Verify</h2>
-<p>In a new Claude Desktop chat, ask:</p>
+<h2>Step 5 - Verify</h2>
+<p>Fully quit Claude Desktop and relaunch it. In a new chat, ask:</p>
 <pre><code>List the Synergy databases you can see, then run health_check for prod-core.</code></pre>
+<p>Then ask a bounded read-only question:</p>
+<pre><code>Find CRs changed today, max 20 rows.</code></pre>
 
-<h2 id="artifacts">Generated artifacts</h2>
-<table>
-  <tr><th>File</th><th>Purpose</th></tr>
-  <tr><td><code>synergy-mcp-server/dist/claude-desktop-mcpb/synergy-ccm-mcp-local.mcpb</code></td><td>Claude Desktop extension bundle</td></tr>
-  <tr><td><code>synergy-mcp-server/dist/claude-desktop-local-mcp/synergy-ccm-mcp-local-mcp-server.json</code></td><td>Manual local MCP JSON payload</td></tr>
-</table>
+<h2>Generated config and plugin</h2>
+<p>The installer writes this shape under <code>mcpServers</code> in Claude Desktop's config file:</p>
+<pre><code>{
+  "mcpServers": {
+    "synergy-ccm-mcp": {
+      "command": ".../synergy-mcp/.venv/Scripts/python.exe",
+      "args": ["-m", "synergy_mcp"],
+      "env": {
+        "SYNERGY_MCP_INVENTORY": ".../synergy-mcp/inventory.yaml"
+      }
+    }
+  }
+}</code></pre>
+<p>The generated plugin contains <code>.claude-plugin/plugin.json</code>, <code>.mcp.json</code>, <code>README.md</code>, and all Synergy skill folders under <code>skills/</code>.</p>
 
 <hr>
 <p class="muted">End of guide. Main guide: <a href="INSTALL.html">INSTALL.html</a>.</p>
