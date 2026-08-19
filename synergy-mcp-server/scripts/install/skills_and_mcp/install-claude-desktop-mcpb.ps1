@@ -40,7 +40,8 @@ $server = [pscustomobject]@{
 }
 
 Write-Host "Claude Desktop MCP server entry to add:" -ForegroundColor Cyan
-$server | ConvertTo-Json -Depth 20 | Write-Host
+$serverJson = $server | ConvertTo-Json -Depth 20
+Write-Host $serverJson
 
 $mcpServers = New-Object psobject
 $mcpServers | Add-Member -MemberType NoteProperty -Name $Name -Value $server
@@ -60,7 +61,7 @@ Compress-Archive -Path (Join-Path $TempDir "*") -DestinationPath $McpbZip -Force
 Move-Item -Force $McpbZip $McpbFile
 Remove-Item -Recurse -Force $TempDir
 
-& $VenvPython $PluginBuilder -Name $Name
+& $VenvPython $PluginBuilder --name $Name
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Start-Process explorer.exe $PluginDist

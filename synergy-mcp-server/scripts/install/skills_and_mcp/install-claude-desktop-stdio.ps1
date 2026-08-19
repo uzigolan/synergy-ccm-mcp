@@ -45,16 +45,20 @@ $server = [pscustomobject]@{
 }
 
 Write-Host "Claude Desktop MCP server entry to add:" -ForegroundColor Cyan
-$server | ConvertTo-Json -Depth 20 | Write-Host
+$serverJson = $server | ConvertTo-Json -Depth 20
+Write-Host $serverJson
 
 if ($json.mcpServers.PSObject.Properties[$Name]) {
     $json.mcpServers.PSObject.Properties.Remove($Name)
 }
 $json.mcpServers | Add-Member -MemberType NoteProperty -Name $Name -Value $server
 
-($json | ConvertTo-Json -Depth 20) | Set-Content -Encoding UTF8 $ClaudeConfig
+$TempConfig = "$ClaudeConfig.tmp"
+($json | ConvertTo-Json -Depth 20) | Set-Content -Encoding UTF8 $TempConfig
+Get-Content $TempConfig -Raw | ConvertFrom-Json | Out-Null
+Move-Item -Force $TempConfig $ClaudeConfig
 
-& $VenvPython $PluginBuilder -Name $Name
+& $VenvPython $PluginBuilder --name $Name
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Start-Process explorer.exe $PluginDist
