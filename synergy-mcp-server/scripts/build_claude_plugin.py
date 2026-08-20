@@ -3,7 +3,6 @@
 
 The plugin contains:
 - .claude-plugin/plugin.json
-- .mcp.json pointing at this repo's local synergy-mcp venv and inventory
 - all Synergy SKILL.md folders under skills/
 
 The generated zip is intended for Claude Desktop's local plugin upload flow.
@@ -18,16 +17,9 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-ROOT = REPO.parent
 SKILLS_SRC = REPO / "skills"
 OUT_ROOT = REPO / "dist" / "plugin"
 PLUGIN = OUT_ROOT / "synergy-ccm-mcp"
-
-if os.name == "nt":
-    VENV_PY = ROOT / "synergy-mcp" / ".venv" / "Scripts" / "python.exe"
-else:
-    VENV_PY = ROOT / "synergy-mcp" / ".venv" / "bin" / "python"
-INVENTORY = ROOT / "synergy-mcp" / "inventory.yaml"
 
 MANIFEST = {
     "name": "synergy-ccm-mcp",
@@ -40,7 +32,7 @@ MANIFEST = {
 
 README = """# Synergy CCM MCP Claude Plugin
 
-This plugin bundles the Synergy skills and a local MCP stdio server entry.
+This plugin bundles the Synergy skills. The MCP stdio server is configured separately by the installer.
 
 ## Install
 
@@ -48,10 +40,7 @@ Claude Desktop: open Settings -> Extensions or Plugins -> install/upload this lo
 
 ## Local Build Caveat
 
-`.mcp.json` points at this machine's repo-local Python virtual environment and inventory file.
-Install from the same checkout, or rebuild the plugin after moving the repository.
-
-If you already configured `synergy-ccm-mcp` manually in `claude_desktop_config.json`, remove that duplicate entry after installing this plugin.
+Install from the same checkout, then run the installer to refresh Claude Desktop's MCP stdio config.
 """
 
 
@@ -64,20 +53,9 @@ def main() -> None:
         shutil.rmtree(OUT_ROOT)
     (PLUGIN / ".claude-plugin").mkdir(parents=True)
 
-    mcp = {
-        "mcpServers": {
-            args.name: {
-                "command": str(VENV_PY),
-                "args": ["-m", "synergy_mcp"],
-                "env": {"SYNERGY_MCP_INVENTORY": str(INVENTORY)},
-            }
-        }
-    }
-
     (PLUGIN / ".claude-plugin" / "plugin.json").write_text(
         json.dumps(MANIFEST, indent=2) + "\n", encoding="utf-8"
     )
-    (PLUGIN / ".mcp.json").write_text(json.dumps(mcp, indent=2) + "\n", encoding="utf-8")
     (PLUGIN / "README.md").write_text(README, encoding="utf-8")
 
     if not SKILLS_SRC.exists():
@@ -95,12 +73,7 @@ def main() -> None:
     file_count = sum(1 for path in PLUGIN.rglob("*") if path.is_file())
     print(f"plugin -> {PLUGIN.relative_to(REPO)} ({skill_count} skills, {file_count} files)")
     print(f"zip    -> {zip_path.relative_to(REPO)}")
-    print("MCP server entry bundled in plugin:")
-    print(json.dumps(mcp["mcpServers"][args.name], indent=2))
-    if not VENV_PY.exists():
-        print(f"WARNING: venv python not found at {VENV_PY}")
-    if not INVENTORY.exists():
-        print(f"WARNING: inventory not found at {INVENTORY}")
+    print("plugin is skills-only; MCP stdio is configured by the installer")
 
 
 if __name__ == "__main__":

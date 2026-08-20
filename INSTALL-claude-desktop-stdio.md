@@ -78,7 +78,7 @@ Linux/macOS bash:
 bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh
 ```
 
-The installer builds a Claude plugin containing the local stdio MCP connector and all `synergy-*` skills. It does not modify Claude Desktop config files directly. It opens the plugin dist directory:
+The installer builds a Claude plugin containing all `synergy-*` skills and prints the local stdio MCP connector entry for you to paste manually in Claude Desktop settings. It does not modify `claude_desktop_config.json`. It opens the plugin dist directory:
 
 - Plugin folder: `synergy-mcp-server/dist/plugin/synergy-ccm-mcp`
 - Upload zip: `synergy-mcp-server/dist/plugin/synergy-ccm-mcp-plugin.zip`
@@ -97,22 +97,32 @@ Then ask a bounded read-only question:
 Find CRs changed today, max 20 rows.
 ```
 
-## Generated plugin
+## Generated plugin and MCP config
 
-The plugin contains this `.mcp.json` connector:
+Add this MCP server entry under `mcpServers` in Claude Desktop's config file:
 
 ```json
 {
   "mcpServers": {
     "synergy-ccm-mcp": {
-      "command": ".../synergy-mcp/.venv/Scripts/python.exe",
-      "args": ["-m", "synergy_mcp"],
-      "env": {
-        "SYNERGY_MCP_INVENTORY": ".../synergy-mcp/inventory.yaml"
-      }
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".../synergy-mcp-server/scripts/launch_synergy_mcp.ps1",
+        "-PythonPath",
+        ".../synergy-mcp/.venv/Scripts/python.exe",
+        "-InventoryPath",
+        ".../synergy-mcp/inventory.yaml"
+      ]
     }
   }
 }
 ```
 
-The generated plugin contains `.claude-plugin/plugin.json`, `.mcp.json`, `README.md`, and all Synergy skill folders under `skills/`.
+The generated plugin is skills-only. It contains `.claude-plugin/plugin.json`, `README.md`, and all Synergy skill folders under `skills/`.

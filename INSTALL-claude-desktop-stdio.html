@@ -74,7 +74,7 @@ git pull</code></pre>
 <pre><code>PowerShell -ExecutionPolicy Bypass -File .\synergy-mcp-server\scripts\install\skills_and_mcp\install-claude-desktop-stdio.ps1</code></pre>
 <p>Linux/macOS bash:</p>
 <pre><code>bash ./synergy-mcp-server/scripts/install/skills_and_mcp/install-claude-desktop-stdio.sh</code></pre>
-<p>The installer builds a Claude plugin containing the local stdio MCP connector and all <code>synergy-*</code> skills. It does not modify Claude Desktop config files directly. It opens the plugin dist directory:</p>
+<p>The installer builds a Claude plugin containing all <code>synergy-*</code> skills and prints the local stdio MCP connector entry for you to paste manually in Claude Desktop settings. It does not modify <code>claude_desktop_config.json</code>. It opens the plugin dist directory:</p>
 <ul>
   <li>Plugin folder: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp</code></li>
   <li>Upload zip: <code>synergy-mcp-server/dist/plugin/synergy-ccm-mcp-plugin.zip</code></li>
@@ -86,20 +86,30 @@ git pull</code></pre>
 <p>Then ask a bounded read-only question:</p>
 <pre><code>Find CRs changed today, max 20 rows.</code></pre>
 
-<h2>Generated plugin</h2>
-<p>The plugin contains this <code>.mcp.json</code> connector:</p>
+<h2>Generated plugin and MCP config</h2>
+<p>Add this MCP server entry under <code>mcpServers</code> in Claude Desktop's config file:</p>
 <pre><code>{
   "mcpServers": {
     "synergy-ccm-mcp": {
-      "command": ".../synergy-mcp/.venv/Scripts/python.exe",
-      "args": ["-m", "synergy_mcp"],
-      "env": {
-        "SYNERGY_MCP_INVENTORY": ".../synergy-mcp/inventory.yaml"
-      }
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".../synergy-mcp-server/scripts/launch_synergy_mcp.ps1",
+        "-PythonPath",
+        ".../synergy-mcp/.venv/Scripts/python.exe",
+        "-InventoryPath",
+        ".../synergy-mcp/inventory.yaml"
+      ]
     }
   }
 }</code></pre>
-<p>The generated plugin contains <code>.claude-plugin/plugin.json</code>, <code>.mcp.json</code>, <code>README.md</code>, and all Synergy skill folders under <code>skills/</code>.</p>
+<p>The generated plugin is skills-only. It contains <code>.claude-plugin/plugin.json</code>, <code>README.md</code>, and all Synergy skill folders under <code>skills/</code>.</p>
 
 <hr>
 <p class="muted">End of guide. Main guide: <a href="INSTALL.html">INSTALL.html</a>.</p>
